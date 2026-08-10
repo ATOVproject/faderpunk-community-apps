@@ -1,0 +1,436 @@
+use embassy_futures::{
+    join::{join, join5},
+    select::{select, select3},
+};
+use embassy_sync::{blocking_mutex::raw::NoopRawMutex, signal::Signal};
+use heapless::Vec;
+use serde::{Deserialize, Serialize};
+
+use libfp::{
+    ext::FromValue,
+    latch::LatchLayer,
+    utils::{attenuate, attenuate_bipolar, midi_gate, split_unsigned_value},
+    AppIcon, Brightness, ClockDivision, Color, Config, Curve, MidiCc, MidiChannel, MidiOut, Param,
+    Range, Value, Waveform, APP_MAX_PARAMS,
+};
+
+use crate::{
+    app::{App, AppStorage, ClockEvent, Led, ManagedStorage, SceneEvent},
+    storage::{AppParams, ParamStore},
+    tasks::leds::LedMode,
+};
+
+pub const CHANNELS: usize = 1;
+pub const PARAMS: usize = 7;
+
+pub static CONFIG: Config<PARAMS> =
+    Config::new("LFO", "Multi shape LFO", Color::Yellow, AppIcon::Sine)
+        .add_param(Param::Enum {
+            name: "Speed",
+            variants: &["Normal", "Slow", "Slowest"],
+        })
+        .add_param(Param::Range {
+            name: "Range",
+            variants: &[Range::_0_10V, Range::_Neg5_5V],
+        })
+        .add_param(Param::MidiChannel {
+            name: "MIDI Channel",
+        })
+        .add_param(Param::MidiCc { name: "MIDI CC" })
+        .add_param(Param::MidiNrpn)
+        .add_param(Param::MidiOut)
+        .add_param(Param::bool { name: "Grid Lock" });
+
+pub struct Params {
+    speed_mult: usize,
+    range: Range,
+    midi_out: MidiOut,
+    midi_channel: MidiChannel,
+    midi_cc: MidiCc,
+    nrpn: bool,
+    phase_lock: bool,
+}
+
+impl AppParams for Params {
+    fn from_values(values: &[Value]) -> Option<Self> {
+        if values.len() < PARAMS {
+            return None;
+        }
+        Some(Self {
+            speed_mult: usize::from_value(values[0]),
+            range: Range::from_value(values[1]),
+            midi_channel: MidiChannel::from_value(values[2]),
+            midi_cc: MidiCc::from_value(values[3]),
+            nrpn: bool::from_value(values[4]),
+            midi_out: MidiOut::from_value(values[5]),
+            phase_lock: bool::from_value(values[6]),
+        })
+    }
+
+    fn to_values(&self) -> Vec<Value, APP_MAX_PARAMS> {
+        let mut vec = Vec::new();
+        vec.push(self.speed_mult.into()).unwrap();
+        vec.push(self.range.into()).unwrap();
+        vec.push(self.midi_channel.into()).unwrap();
+        vec.push(self.midi_cc.into()).unwrap();
+        vec.push(Value::MidiNrpn(self.nrpn)).unwrap();
+        vec.push(self.midi_out.into()).unwrap();
+        vec.push(self.phase_lock.into()).unwrap();
+        vec
+    }
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct Storage {
+    clocked: bool,
+    layer_attenuation: u16,
+    layer_speed: u16,
+    wave: Waveform,
+    muted: bool,
+}
+
+impl Default for Storage {
+    fn default() -> Self {
+        Self {
+            clocked: false,
+            layer_attenuation: 4095,
+            layer_speed: 2000,
+            wave: Waveform::Sine,
+            muted: false,
+        }
+    }
+}
+
+impl AppStorage for Storage {}
+
+#[embassy_executor::task(pool_size = 16/CHANNELS)]
+pub async fn wrapper(app: App<CHANNELS>, exit_signal: &'static Signal<NoopRawMutex, bool>) {
+    let param_store = ParamStore::<Params>::new(
+        app.app_id,
+        app.layout_id,
+        Params {
+            speed_mult: 0,
+            range: Range::_Neg5_5V,
+            midi_out: MidiOut([false, false, false]),
+            midi_channel: MidiChannel::default(),
+            midi_cc: MidiCc::from(32u8.saturating_add(app.start_channel as u8)),
+            nrpn: false,
+            phase_lock: true,
+        },
+    );
+    let storage = ManagedStorage::<Storage>::new(app.app_id, app.layout_id);
+
+    param_store.load().await;
+    storage.load().await;
+
+    let app_loop = async {
+        loop {
+            select3(
+                run(&app, &param_store, &storage),
+                param_store.param_handler(),
+                storage.saver_task(),
+            )
+            .await;
+        }
+    };
+
+    select(app_loop, app.exit_handler(exit_signal)).await;
+}
+
+pub async fn run(
+    app: &App<CHANNELS>,
+    params: &ParamStore<Params>,
+    storage: &ManagedStorage<Storage>,
+) {
+    let (range, midi_out, midi_chan, midi_cc, nrpn) =
+        params.query(|p| (p.range, p.midi_out, p.midi_channel, p.midi_cc, p.nrpn));
+
+    let speed_mult = 2u32.pow(params.query(|p| p.speed_mult).min(31) as u32);
+    let phase_lock = params.query(|p| p.phase_lock);
+    let output = app.make_out_jack(0, range).await;
+    let fader = app.use_faders();
+    let buttons = app.use_buttons();
+    let leds = app.use_leds();
+    let mut clk = app.use_clock();
+
+    let midi = app.use_midi_output(midi_out, midi_chan, nrpn);
+
+    let glob_lfo_speed = app.make_global(0.0682);
+    let glob_lfo_pos = app.make_global(0.0);
+    let glob_latch_layer = app.make_global(LatchLayer::Main);
+    let glob_tick = app.make_global(false);
+    let glob_quant_speed = app.make_global(0.07);
+    let glob_count = app.make_global(20);
+    let glob_div = app.make_global(24u16);
+    // Clock tick at which the LFO phase is considered zero. 0 = locked to the
+    // clock grid; set to the current tick on a manual reset to run out of phase.
+    let glob_phase_origin = app.make_global(0u64);
+    // Last tick number seen by the clock future; read by the button future.
+    let glob_ticks = app.make_global(0u64);
+
+    let curve = Curve::Exponential;
+    let resolution = [384, 192, 96, 48, 24, 16, 12, 8, 6];
+
+    let wave = storage.query(|s| s.wave);
+
+    let color = get_color_for(wave);
+
+    let glob_muted = app.make_global(storage.query(|s| s.muted));
+    let long_press_fired = app.make_global(false);
+
+    if !glob_muted.get() {
+        leds.set(0, Led::Button, color, Brightness::Mid);
+    }
+
+    let mut count = 0;
+    let mut last_val: u16 = u16::MAX;
+
+    let update_speed = async || {
+        glob_lfo_speed.set((curve.at(storage.query(|s| s.layer_speed)) as f32) * 0.015 + 0.0682);
+
+        let div = resolution[((storage.query(|s| s.layer_speed)) as usize / 500).clamp(0, 8)];
+        if div != glob_div.get() {
+            glob_div.set(div);
+            // Re-align to the clock grid whenever the musical division changes.
+            glob_phase_origin.set(0);
+        }
+        glob_quant_speed.set(4096. / (glob_count.get().max(1) as f32 * div as f32));
+    };
+
+    update_speed().await;
+
+    let fut1 = async {
+        loop {
+            app.delay_millis(1).await;
+
+            let latch_active_layer =
+                glob_latch_layer.set(LatchLayer::from(buttons.is_shift_pressed()));
+
+            let (sync, wave) = storage.query(|s| (s.clocked, s.wave));
+
+            count += 1;
+            if glob_tick.get() {
+                // add timeout
+
+                if count < 2000 {
+                    glob_count.set(count);
+                    update_speed().await
+                }
+                count = 0;
+                glob_tick.set(false);
+            }
+
+            let lfo_speed = glob_lfo_speed.get();
+            let quant_speed = glob_quant_speed.get();
+            let lfo_pos = glob_lfo_pos.get();
+
+            let next_pos = if sync {
+                (lfo_pos + quant_speed / speed_mult as f32) % 4096.0
+            } else {
+                (lfo_pos + lfo_speed / speed_mult as f32) % 4096.0
+            };
+
+            let attenuation = storage.query(|s| s.layer_attenuation);
+            let val = if range == Range::_Neg5_5V {
+                attenuate_bipolar(wave.at(next_pos as usize), attenuation)
+            } else {
+                attenuate(wave.at(next_pos as usize), attenuation)
+            };
+
+            let effective_val = if glob_muted.get() {
+                if range == Range::_Neg5_5V {
+                    2047
+                } else {
+                    0
+                }
+            } else {
+                val
+            };
+            output.set_value(effective_val);
+            if midi_out.is_some() {
+                let gate_val = midi_gate(effective_val, nrpn);
+                if gate_val != last_val {
+                    midi.send_cc(midi_cc, effective_val).await;
+                    last_val = gate_val;
+                }
+            }
+
+            let led = if range == Range::_Neg5_5V {
+                split_unsigned_value(val)
+            } else {
+                [(val / 16) as u8, 0]
+            };
+
+            let color = get_color_for(wave);
+
+            if glob_muted.get() {
+                leds.unset(0, Led::Button);
+            } else if sync && next_pos as u16 > 2048 {
+                leds.set(0, Led::Button, color, Brightness::Low);
+            } else {
+                leds.set(0, Led::Button, color, Brightness::Mid);
+            }
+
+            match latch_active_layer {
+                LatchLayer::Main => {
+                    leds.set(0, Led::Top, color, Brightness::Custom(led[0]));
+                    leds.set(0, Led::Bottom, color, Brightness::Custom(led[1]));
+                }
+                LatchLayer::Alt => {
+                    leds.set(
+                        0,
+                        Led::Top,
+                        Color::Red,
+                        Brightness::Custom(((attenuation / 16) / 2) as u8),
+                    );
+                    leds.unset(0, Led::Bottom);
+                }
+                LatchLayer::Third => {}
+            }
+
+            glob_lfo_pos.set(next_pos);
+        }
+    };
+
+    let fut2 = async {
+        let mut latch = app.make_latch(fader.get_value());
+
+        loop {
+            fader.wait_for_change().await;
+
+            let latch_layer = glob_latch_layer.get();
+
+            let target_value = match latch_layer {
+                LatchLayer::Main => storage.query(|s| s.layer_speed),
+                LatchLayer::Alt => storage.query(|s| s.layer_attenuation),
+                LatchLayer::Third => 0,
+            };
+
+            if let Some(new_value) = latch.update(fader.get_value(), latch_layer, target_value) {
+                match latch_layer {
+                    LatchLayer::Main => {
+                        storage.modify_and_save(|s| s.layer_speed = new_value);
+                        update_speed().await;
+                    }
+                    LatchLayer::Alt => {
+                        storage.modify_and_save(|s| s.layer_attenuation = new_value);
+                    }
+                    LatchLayer::Third => {}
+                }
+            }
+        }
+    };
+
+    let fut3 = async {
+        loop {
+            buttons.wait_for_down(0).await;
+
+            if !buttons.is_shift_pressed() {
+                long_press_fired.set(false);
+                buttons.wait_for_up(0).await;
+
+                if !long_press_fired.get() {
+                    let wave = storage.modify_and_save(|s| {
+                        s.wave = s.wave.cycle();
+                        s.wave
+                    });
+                    if !glob_muted.get() {
+                        let color = get_color_for(wave);
+                        leds.set(0, Led::Button, color, Brightness::Mid);
+                    }
+                }
+            } else {
+                // Offset the phase lock to the current tick so a clocked LFO can
+                // be pushed out of phase with the grid; also resets when free-running.
+                glob_phase_origin.set(glob_ticks.get());
+                glob_lfo_pos.set(0.0);
+            }
+        }
+    };
+
+    let fut4 = async {
+        loop {
+            buttons.wait_for_any_long_press().await;
+
+            if buttons.is_shift_pressed() {
+                let clocked = storage.modify_and_save(|s| {
+                    s.clocked = !s.clocked;
+                    s.clocked
+                });
+                if clocked {
+                    leds.set_mode(0, Led::Button, LedMode::Flash(color, Some(4)));
+                }
+            } else {
+                long_press_fired.set(true);
+                let muted = glob_muted.toggle();
+                storage.modify_and_save(|s| {
+                    s.muted = muted;
+                });
+                if muted {
+                    leds.unset(0, Led::Button);
+                } else {
+                    let wave = storage.query(|s| s.wave);
+                    let color = get_color_for(wave);
+                    leds.set(0, Led::Button, color, Brightness::Mid);
+                }
+            }
+        }
+    };
+    let fut5 = async {
+        loop {
+            match clk.wait_for_event(ClockDivision::_1).await {
+                ClockEvent::Tick(tick) => {
+                    glob_ticks.set(tick);
+                    if storage.query(|s| s.clocked) && phase_lock {
+                        let ticks_per_cycle =
+                            (glob_div.get() as u64).saturating_mul(speed_mult as u64);
+                        if ticks_per_cycle > 0 {
+                            let phase_in_cycle =
+                                tick.wrapping_sub(glob_phase_origin.get()) % ticks_per_cycle;
+                            glob_lfo_pos
+                                .set(phase_in_cycle as f32 * 4096.0 / ticks_per_cycle as f32);
+                        }
+                    }
+                    glob_tick.set(true);
+                }
+                ClockEvent::Reset => {
+                    glob_phase_origin.set(0);
+                    glob_lfo_pos.set(0.0);
+                }
+                _ => {}
+            }
+        }
+    };
+
+    let scene_handler = async {
+        loop {
+            match app.wait_for_scene_event().await {
+                SceneEvent::LoadScene(scene) => {
+                    storage.load_from_scene(scene).await;
+                    let (wave_saved, muted) = storage.query(|s| (s.wave, s.muted));
+                    update_speed().await;
+                    glob_muted.set(muted);
+                    if muted {
+                        leds.unset(0, Led::Button);
+                    } else {
+                        let color = get_color_for(wave_saved);
+                        leds.set(0, Led::Button, color, Brightness::Mid);
+                    }
+                }
+                SceneEvent::SaveScene(scene) => storage.save_to_scene(scene).await,
+            }
+        }
+    };
+
+    join(join5(fut1, fut2, fut3, fut4, scene_handler), fut5).await;
+}
+
+fn get_color_for(wave: Waveform) -> Color {
+    match wave {
+        Waveform::Sine => Color::Yellow,
+        Waveform::Triangle => Color::Pink,
+        Waveform::Saw => Color::Cyan,
+        Waveform::SawInv => Color::Red,
+        Waveform::Square => Color::White,
+    }
+}

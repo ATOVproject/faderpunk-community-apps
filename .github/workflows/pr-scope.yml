@@ -1,0 +1,114 @@
+name: Community app submission check
+
+# First-pass gate for PRs, cheapest checks first — see CONTRIBUTING.md
+# "The rules". `pull_request` (not `pull_request_target`), read-only
+# permissions: safe to run on forked-repo PRs with the default GITHUB_TOKEN,
+# no secrets ever exposed to submitted code. Neither job checks out the
+# fork's tree wholesale — everything is fetched file-by-file via the GitHub
+# API, so submitted code is inspected as text, never executed by CI.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  scope-check:
+    if: ${{ !endsWith(github.actor, '[bot]') }}
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    outputs:
+      passed: ${{ steps.check.outputs.passed }}
+      module: ${{ steps.assemble.outputs.module }}
+    steps:
+      - name: Checkout (this repo's own scripts, not the fork's changes)
+        uses: actions/checkout@v4
+
+      - name: Fetch PR file list
+        run: |
+          gh api "repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/files" \
+            --paginate --slurp | jq 'add' > files.json
+
+      - name: Fetch base and head catalog and manual-tab content
+        run: |
+          base_sha="${{ github.event.pull_request.base.sha }}"
+          head_sha="${{ github.event.pull_request.head.sha }}"
+          gh api "repos/${{ github.repository }}/contents/apps-catalog.json?ref=$base_sha" \
+            --jq '.content' | base64 -d > base-catalog.json
+          gh api "repos/${{ github.repository }}/contents/apps-catalog.json?ref=$head_sha" \
+            --jq '.content' | base64 -d > head-catalog.json
+          gh api "repos/${{ github.repository }}/contents/manual-tab.json?ref=$base_sha" \
+            --jq '.content' | base64 -d > base-manual-tab.json
+          gh api "repos/${{ github.repository }}/contents/manual-tab.json?ref=$head_sha" \
+            --jq '.content' | base64 -d > head-manual-tab.json
+
+      - name: Assemble fixture and derive module name
+        id: assemble
+        run: |
+          jq -n \
+            --slurpfile files files.json \
+            --slurpfile base base-catalog.json \
+            --slurpfile head head-catalog.json \
+            --slurpfile base_manual base-manual-tab.json \
+            --slurpfile head_manual head-manual-tab.json \
+            '{
+              files: $files[0],
+              base_catalog: $base[0],
+              head_catalog: $head[0],
+              base_manual_tab: $base_manual[0],
+              head_manual_tab: $head_manual[0]
+            }' > fixture.json
+
+          module=$(jq -r '.files[] | select(.filename | test("^apps/[a-z][a-z0-9_]*\\.rs$")) | .filename' fixture.json \
+            | head -1 | xargs -r basename -s .rs)
+          echo "module=$module" >> "$GITHUB_OUTPUT"
+
+      - name: Run scope check
+        id: check
+        run: |
+          if .github/scripts/pr-scope-check.sh fixture.json; then
+            echo "passed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "passed=false" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+
+  build-check:
+    needs: scope-check
+    if: needs.scope-check.outputs.passed == 'true'
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Checkout (this repo's own scripts, not the fork's changes)
+        uses: actions/checkout@v4
+
+      - name: Fetch the submitted app's file content
+        run: |
+          module="${{ needs.scope-check.outputs.module }}"
+          head_sha="${{ github.event.pull_request.head.sha }}"
+          gh api "repos/${{ github.repository }}/contents/apps/$module.rs?ref=$head_sha" \
+            --jq '.content' | base64 -d > "$module.rs"
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: thumbv8m.main-none-eabihf
+
+      - run: cargo install flip-link
+
+      - name: Compile check (clone faderpunk, inject alongside every factory app, build)
+        run: |
+          module="${{ needs.scope-check.outputs.module }}"
+          .github/scripts/pr-build-check.sh "$module.rs" "$module"
+
+  # AI first-pass review: not wired up yet. Per the plan (see CONTRIBUTING.md
+  # "Review"), this is meant to run once scope-check and build-check both
+  # pass, and flag things the mechanical checks can't (API misuse that's
+  # technically within bounds, a manual entry that doesn't match the code)
+  # as an advisory comment — never a merge gate on its own. Needs a decision
+  # on provider/model and API key management before it can be added for
+  # real; deliberately not stubbed out with a fake step here.

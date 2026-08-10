@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Faderpunk community app catalog",
+  "description": "One entry per accepted community app. appId is permanent once assigned — never reassign or reuse one, even if an app is removed. The manual entry for the same app lives in manual-tab.json, cross-referenced by this same appId — not a path field here.",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["appId", "module", "author"],
+    "properties": {
+      "appId": {
+        "type": "integer",
+        "minimum": 100,
+        "maximum": 255,
+        "description": "Reserved range for community apps. Official apps use 1-99. Also the linking key into manual-tab.json."
+      },
+      "module": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9_]*$",
+        "description": "Must match the Rust module name in apps/<module>.rs."
+      },
+      "author": {
+        "type": "string",
+        "minLength": 1
+      }
+    }
+  }
+}
