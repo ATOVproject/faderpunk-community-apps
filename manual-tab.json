@@ -1,1 +1,57 @@
-[]
+[
+  {
+    "appId": 109,
+    "title": "Euclid",
+    "description": "Euclidean sequencer",
+    "color": "Orange",
+    "icon": "euclid",
+    "params": [
+      "MIDI Channel",
+      "MIDI NOTE 1",
+      "MIDI NOTE 2",
+      "GATE %",
+      "Color"
+    ],
+    "storage": [
+      "Length",
+      "Fill",
+      "Rotation",
+      "Speed",
+      "Probability",
+      "Muted",
+      "Mode"
+    ],
+    "text": "This app is a Euclidean sequencer with two outputs: Jack 1 delivers the main Euclidean rhythm, while Jack 2 provides either an inverted version or an end-of-rhythm pulse. In inverted mode, if Output 1 sends a pulse, Output 2 does not—and vice versa. Send MIDI triggers, with MIDI channel and MIDI notes. Main functions include Fader 1 for sequence length and Fader 2 for number of beats (fill). Button 1 toggles semitone offset, Button 2 mutes the output. Shift + Fader 1 sets rotation, Shift + Fader 2 sets probability. Button + Fader 1 changes the sequencer speed with available resolutions: 32ndT, 32nd, 16thT, 16th, 8thT, 8th, 4thT, 4th, 2nd, note, half bar, bar. While setting speed, LED color indicates division type: orange for triplet divisions and blue for straight divisions.",
+    "channels": [
+      {
+        "jackTitle": "Trigger 1 Out",
+        "jackDescription": "Outputs 10V triggers",
+        "faderTitle": "Length",
+        "faderDescription": "Sets the length of the sequence",
+        "faderPlusShiftTitle": "Rotation",
+        "faderPlusShiftDescription": "Rotates the sequence",
+        "faderPlusFnTitle": "Speed",
+        "faderPlusFnDescription": "32ndT, 32nd, 16thT, 16th, 8thT, 8th, 4thT, 4th, 2nd, note, half bar, bar",
+        "fnTitle": "Speed",
+        "fnDescription": "Fn + Fader changes the sequencer speed",
+        "ledTop": "Trigger 1 activity",
+        "ledBottom": "",
+        "ledBottomPlusFn": "Clock speed (orange: triplet, blue: straight)"
+      },
+      {
+        "jackTitle": "Trigger 2 Out",
+        "jackDescription": "Outputs 10V triggers",
+        "faderTitle": "Beats",
+        "faderDescription": "Amount of beats in the sequence",
+        "faderPlusShiftTitle": "Probability",
+        "faderPlusShiftDescription": "Chances that the sequencer outputs a trigger",
+        "fnTitle": "Mute",
+        "fnDescription": "Mute the sequencer",
+        "fnPlusShiftTitle": "Mode switch",
+        "fnPlusShiftDescription": "Set output 2 to inverted mode or EoC",
+        "ledTop": "Trigger 1 activity",
+        "ledBottom": ""
+      }
+    ]
+  }
+]

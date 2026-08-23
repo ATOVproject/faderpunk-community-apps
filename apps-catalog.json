@@ -1,1 +1,7 @@
-[]
+[
+  {
+    "appId": 109,
+    "module": "euclid",
+    "author": "ATOVproject (POC copy of official app)"
+  }
+]
