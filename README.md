@@ -14,6 +14,6 @@ Community app IDs start at 100 (official apps use 1–99) and are permanent once
 
 ## Status
 
-Not yet accepting public PRs. The mechanical review gate (scope, API boundary, panic/unsafe rules, catalog + manual-tab validation, real solo-app compile check) is built and tested locally — `.github/workflows/pr-scope.yml`, `.github/scripts/`. What's still missing: this repo isn't pushed to GitHub yet, so the workflow isn't live, and the AI first-pass review step isn't wired up yet. See `CONTRIBUTING.md`.
+Private for now — not yet open to public PRs, though the mechanical review gate is live: `.github/workflows/pr-scope.yml` runs on every PR (scope, API boundary, panic/unsafe rules, catalog + manual-tab validation, real solo-app compile check against the actual `App<N>` API). The AI first-pass review step isn't wired up yet — advisory only, not a merge gate, per `CONTRIBUTING.md`.
 
-Also currently seeded with 27 POC entries (IDs 100–126) — verbatim copies of the official apps, including their real manual text pulled from the configurator's `ManualTab.tsx`, used to test `faderpunk-store` and this gate end-to-end. Not real third-party submissions.
+`apps/`, `apps-catalog.json`, and `manual-tab.json` start empty — no seeded entries.

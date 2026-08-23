@@ -1,13 +1,12 @@
 # Contributing a community app
 
-> **Not open yet.** The mechanical checks below (scope, API boundary,
-> panic/unsafe rules, catalog validity, real solo-app compile) are built
-> and tested — see `.github/workflows/pr-scope.yml` and
-> `.github/scripts/`. Still missing before this repo can take outside
-> contributions: it isn't pushed to GitHub yet, so the workflow isn't
-> actually live anywhere, and the AI first-pass review step isn't wired up
-> (needs a provider/model + API key decision first). Treat this as
-> internal/soft-launch only until both land.
+> **Not open to the public yet.** This repo is private for now. The
+> mechanical checks below (scope, API boundary, panic/unsafe rules,
+> catalog validity, real solo-app compile) are live and run on every
+> PR — see `.github/workflows/pr-scope.yml` and `.github/scripts/`. The
+> AI first-pass review step isn't wired up yet (needs a provider/model +
+> API key decision first) — advisory only, not a blocker for opening this
+> up.
 
 ## What a submission is
 
