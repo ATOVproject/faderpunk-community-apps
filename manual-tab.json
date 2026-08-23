@@ -1,1 +1,45 @@
-[]
+[
+  {
+    "appId": 117,
+    "title": "Maniac Bounce",
+    "description": "Delay with bounce pitch and velocity LFO",
+    "icon": "sine",
+    "color": "Pink",
+    "text": "Maniac Bounce is a one-channel MIDI/CV delay with dry-through, bounce pitch, and a velocity LFO on dry notes and repeats. Main sets delay time (fader up = shorter) and echo retention together — short delays fade quickly, long delays keep bouncing. Shift + fader sets the bounce interval bipolar ±24 semitones (default about +6 st). Button + fader sets Vel LFO rate and depth coupled (up = faster and deeper); the LFO modulates velocity on every note including the immediate dry hit. In MIDI→CV Gate mode the same LFO shapes gate pulse width instead.\n\nEach note auto-gates to about half the frozen delay period. Bounce alternates +interval / −interval per repeat. A new NoteOn on the same pitch kills the prior chain for that pitch (poly with same-pitch kill). NoteOff does not kill the trail. Short button tap mutes new input while the trail rings out; long press panics unless you are holding Button+fader for Vel LFO. White button flash on input. Free-running ms delay only — no clock sync.",
+    "channels": [
+      {
+        "jackTitle": "Delay I/O",
+        "jackDescription": "MIDI or CV in, MIDI or CV out per I/O mode. Dry through plus bouncing repeats.",
+        "faderTitle": "Delay / decay",
+        "faderDescription": "Repeat spacing. Fader up is shorter and decays faster; down is slower with more hops.",
+        "faderPlusFnTitle": "Velocity LFO",
+        "faderPlusFnDescription": "Rate and depth together on dry hits and repeats. MIDI→CV Gate uses the same LFO for pulse width.",
+        "faderPlusShiftTitle": "Bounce interval",
+        "faderPlusShiftDescription": "Each repeat alternates +interval / −interval, ±24 semitones.",
+        "fnTitle": "Mute / panic",
+        "fnDescription": "Short mute (ring-out). Long panic unless you were editing Third.",
+        "ledTop": "Activity / bounce interval",
+        "ledBottom": "Activity / bounce interval"
+      }
+    ],
+    "params": [
+      "I/O",
+      "Max delay (ms)",
+      "Signal",
+      "Range",
+      "Color",
+      "MIDI In",
+      "MIDI In CH",
+      "MIDI Out",
+      "MIDI Out",
+      "MIDI CC",
+      "MIDI Note"
+    ],
+    "storage": [
+      "Delay / decay",
+      "Bounce interval",
+      "Vel LFO",
+      "Muted"
+    ]
+  }
+]
