@@ -1,1 +1,7 @@
-[]
+[
+  {
+    "appId": 114,
+    "module": "manifold",
+    "author": "kosmar"
+  }
+]
