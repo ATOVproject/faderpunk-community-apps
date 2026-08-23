@@ -1,1 +1,59 @@
-[]
+[
+  {
+    "appId": 106,
+    "title": "Chord Vamp",
+    "description": "Chord progressions — perform, shift+tap capture, or auto vamp",
+    "icon": "note-grid",
+    "color": "Violet",
+    "text": "Chord Vamp plays MIDI chord progressions in two modes. **Perform**: scrub a **pitch map** of the genre’s unique degrees across ~3 octaves and **hold** the button to sound the chord. **Auto**: a genre **rhythm phrase** (weighted hits + multi-bar rests) loops on the clock while harmony **Repeats** or **Meanders**; **short press** play/pauses. Toggle modes with **Shift + short press**.\n\nIn Perform, **Shift + short press** switches to Auto and starts playback. If the always-record ring has chords, it also commits the last N bars (per **Capture length**) into a timed clip. If the ring is empty, Auto runs the **genre phrase** instead. **Perform long press** is unused — the chord stays held while the button is down.\n\nIn Auto, **long press** clears the capture clip and reseeds the genre phrase. **Shift + long press** panics. **Shift + short press** returns to Perform.\n\n**Feel** (Button + Fader) scales Auto hit lengths and Capture playback durations. **Swing** (scene storage, genre-seeded) delays odd 16ths; resets when you pick/reseed a genre.\n\n**Jack** folds CV Out, CV In Macro, and CV In Panic into one enum — Macro modulates scrub (Perform) or tension (Auto); Panic fires All Notes Off from CV.",
+    "channels": [
+      {
+        "jackTitle": "CV Out / CV In",
+        "jackDescription": "CV Out: chord root pitch while held/sounding (0V idle). CV In Macro or CV In Panic.",
+        "faderTitle": "Scrub / Tension",
+        "faderDescription": "Perform: pitch map (genre degrees × 3 octaves). Auto: Meander tension.",
+        "faderPlusFnTitle": "Feel",
+        "faderPlusFnDescription": "Laid back ↔ advanced hit length (Capture durs scale too). Rests unchanged.",
+        "faderPlusShiftTitle": "Genre",
+        "faderPlusShiftDescription": "Cycle genre preset (Capture clip slot when a timed clip exists).",
+        "fnTitle": "Chord / Play",
+        "fnDescription": "Perform: hold for chord. Auto: short = play/pause. Long (Auto): clear clip / reseed.",
+        "fnPlusShiftTitle": "Mode / Capture / Panic",
+        "fnPlusShiftDescription": "Short: toggle Perform↔Auto; Perform+Shift+short = capture. Long (Auto): panic.",
+        "ledTop": "Scrub / phrase / pitch meter",
+        "ledTopPlusShift": "Genre color (rose = capture clip)",
+        "ledTopPlusFn": "Feel / pitch (rose Auto, blue Perform)",
+        "ledBottom": "Meter pair",
+        "ledBottomPlusFn": "Feel / pitch meter"
+      }
+    ],
+    "params": [
+      "MIDI Out",
+      "MIDI Channel",
+      "Root",
+      "Scale",
+      "Genre",
+      "Voicing",
+      "Velocity",
+      "Auto style",
+      "Start mode",
+      "Capture length",
+      "Color",
+      "Jack",
+      "Range",
+      "V/Oct",
+      "CV Att"
+    ],
+    "storage": [
+      "Vamp slots (8-step progression)",
+      "Genre",
+      "Scrub position",
+      "Tension",
+      "Feel (hit length)",
+      "Swing (genre-seeded)",
+      "Mode (Perform/Auto)",
+      "Auto running",
+      "Capture clip"
+    ]
+  }
+]
