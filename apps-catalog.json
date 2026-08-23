@@ -8,5 +8,10 @@
     "appId": 101,
     "module": "grooves",
     "author": "kosmar"
+  },
+  {
+    "appId": 103,
+    "module": "super_lfo",
+    "author": "kosmar"
   }
 ]

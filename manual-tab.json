@@ -94,5 +94,77 @@
       "Muted",
       "Drummer"
     ]
+  },
+  {
+    "appId": 103,
+    "title": "Super LFO",
+    "description": "Morphing dual-osc LFO with CV form control",
+    "icon": "sine",
+    "color": "Cyan",
+    "text": "Dual-osc morphing LFO. Ch0 Morph/Amp/Skew on CV In; Ch1 Symmetry/Speed/Warp on CV Out. Shift+Short on Ch0 cycles CV Dest. Freeze holds the wave; In-mute silences CV-in; Out-mute silences output. Ch1 Shift+Long toggles clock sync (Grid Lock). Mix balance 0–100% (Xfade only).",
+    "channels": [
+      {
+        "jackTitle": "CV In",
+        "jackDescription": "Modulates the selected CV Dest (attenuated).",
+        "faderTitle": "Morph",
+        "faderDescription": "Waveform morph amount.",
+        "faderPlusShiftTitle": "Attenuation (Amp)",
+        "faderPlusShiftDescription": "Output / CV-in amplitude.",
+        "faderPlusFnTitle": "Skew",
+        "faderPlusFnDescription": "Soft skew of the morph shape.",
+        "fnTitle": "Freeze",
+        "fnDescription": "Short: freeze toggle. Long: in-mute.",
+        "fnPlusShiftTitle": "CV Dest / Mix Mode",
+        "fnPlusShiftDescription": "Short: cycle CV Dest. Long: cycle Mix Mode.",
+        "ledTop": "Morph / dest meters",
+        "ledBottom": "Amp / skew meters"
+      },
+      {
+        "jackTitle": "CV Out",
+        "jackDescription": "Mixed LFO voltage.",
+        "faderTitle": "Symmetry",
+        "faderDescription": "Duty / symmetry of the wave.",
+        "faderPlusShiftTitle": "Speed",
+        "faderPlusShiftDescription": "Rate (or clock division when Grid Lock).",
+        "faderPlusFnTitle": "Phase-Warp",
+        "faderPlusFnDescription": "Nonlinear phase distortion.",
+        "fnTitle": "Phase reset",
+        "fnDescription": "Short: reset phase. Long: out-mute.",
+        "fnPlusShiftTitle": "Reverse / Grid Lock",
+        "fnPlusShiftDescription": "Short: reverse. Long: clock sync toggle.",
+        "ledTop": "Symmetry / speed meters",
+        "ledBottom": "Warp meters"
+      }
+    ],
+    "params": [
+      "Speed",
+      "Range",
+      "MIDI Channel",
+      "MIDI CC",
+      "Color",
+      "MIDI NRPN",
+      "MIDI Out",
+      "Grid Lock",
+      "Mix Mode",
+      "Osc B",
+      "Mix balance",
+      "Rate-mod depth",
+      "CV Dest"
+    ],
+    "storage": [
+      "Morph",
+      "Skew",
+      "Warp",
+      "Symmetry",
+      "Speed",
+      "Attenuation",
+      "Rate Mod",
+      "CV dest",
+      "Reversed",
+      "Frozen",
+      "Clocked",
+      "In mute",
+      "Out mute"
+    ]
   }
 ]
