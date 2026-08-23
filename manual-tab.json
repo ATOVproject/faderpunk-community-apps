@@ -1,1 +1,50 @@
-[]
+[
+  {
+    "appId": 104,
+    "title": "Echolot",
+    "description": "MIDI/CV delay with feedback and pitch shift",
+    "icon": "sine",
+    "color": "Cyan",
+    "text": "Echolot is a MIDI/CV delay with feedback, mix, and optional pitch shift on each repeat.",
+    "channels": [
+      {
+        "jackTitle": "CV",
+        "jackDescription": "Role depends on I/O and Signal params.",
+        "faderTitle": "Delay",
+        "faderDescription": "Delay time or clock division.",
+        "faderPlusFnTitle": "Feedback/mix",
+        "faderPlusFnDescription": "Latch layers.",
+        "faderPlusShiftTitle": "Interval",
+        "faderPlusShiftDescription": "Pitch shift per repeat.",
+        "fnTitle": "Mute",
+        "fnDescription": "Short mute; long clears buffer.",
+        "ledTop": "Input activity",
+        "ledBottom": "Delay level"
+      }
+    ],
+    "params": [
+      "I/O",
+      "Delay mode",
+      "Max delay (ms)",
+      "Interval mode",
+      "Routing",
+      "Signal",
+      "Range",
+      "Color",
+      "MIDI Out",
+      "MIDI Channel",
+      "MIDI CC",
+      "MIDI In",
+      "Feedback",
+      "Mix",
+      "Muted"
+    ],
+    "storage": [
+      "Delay",
+      "Interval",
+      "Feedback saved",
+      "Mix saved",
+      "Muted"
+    ]
+  }
+]
