@@ -1,1 +1,52 @@
-[]
+[
+  {
+    "appId": 116,
+    "title": "Dit Dah",
+    "description": "ITU Morse phrase player with 16th-quantized note-ons",
+    "icon": "sequence-square",
+    "color": "Orange",
+    "text": "Dit Dah plays packed ASCII Morse phrases as MIDI notes, quantized so each dit/dah starts on a 16th. It needs clock: the first downbeat or a Reset arms playback; after that the phrase loops without waiting for bar resets. Stop silences everything.\n\nJack is one CV: Gate Out, Pitch Out (0–10 V, V/Oct), or Gate In (±5 V). Gate In rising edge arms the phrase like Shift+short. MIDI notes always fire.\n\nMain sets dit length from a 30 ms floor up to four 16ths of the current tick. Dahs last three dits. Alt transposes the whole phrase. Third (deadzone) adds the Dah interval param only onto dahs. Mute blocks output. Phrase 1 defaults to SOS.",
+    "channels": [
+      {
+        "jackTitle": "Jack",
+        "jackDescription": "Gate Out / Pitch Out (0–10 V V/Oct), or Gate In (±5 V) to arm the phrase on a rising edge. MIDI notes always fire.",
+        "faderTitle": "Dit length",
+        "faderDescription": "Duration of a dit in milliseconds, from 30 ms up to four 16th-notes of the incoming clock. Dah is 3× dit.",
+        "faderPlusFnTitle": "Dah interval",
+        "faderPlusFnDescription": "Adds the Interval param onto dahs only (deadzone around centre). Dits stay on the Alt-offset pitch.",
+        "faderPlusShiftTitle": "Pitch offset",
+        "faderPlusShiftDescription": "Bipolar transposition of the whole phrase around Base note, up to ±48 semitones.",
+        "fnTitle": "Mute / re-arm",
+        "fnDescription": "Short tap mutes MIDI and CV.",
+        "ledTop": "Orange high while a tone is sounding",
+        "ledBottom": "—",
+        "fnPlusShiftTitle": "Arm",
+        "fnPlusShiftDescription": "Shift + short arms playback on the next 16th."
+      }
+    ],
+    "params": [
+      "MIDI Out",
+      "MIDI Channel",
+      "Base note",
+      "Interval",
+      "Jack",
+      "V/Oct",
+      "Phrase 1",
+      "Phrase 2",
+      "Phrase 3",
+      "Phrase 4",
+      "Phrase 5",
+      "Phrase 6",
+      "Phrase 7",
+      "Phrase 8",
+      "Phrase 9",
+      "Phrase 10"
+    ],
+    "storage": [
+      "Dit length",
+      "Pitch offset",
+      "Dah interval blend",
+      "Muted"
+    ]
+  }
+]
