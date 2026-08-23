@@ -105,6 +105,65 @@ jobs:
           module="${{ needs.scope-check.outputs.module }}"
           .github/scripts/pr-build-check.sh "$module.rs" "$module"
 
+  manual-check:
+    needs: scope-check
+    if: needs.scope-check.outputs.passed == 'true'
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      # faderpunk-forge is public, so this needs no token — a schema-valid
+      # manual-tab.json entry isn't the same as one that actually injects
+      # into ManualTab.tsx and builds; this step runs the real injection
+      # logic (inject_community_manual, same code the CLI's `preview` and
+      # the desktop app's Configurator view use) against a real faderpunk
+      # checkout to confirm it does, rather than trusting the schema check
+      # alone.
+      - name: Checkout faderpunk-forge (public, no token needed)
+        uses: actions/checkout@v4
+        with:
+          repository: ATOVproject/faderpunk-forge
+          path: faderpunk-forge
+
+      # Only the one file, at the PR's head commit — same
+      # never-checkout-fork-code posture as scope-check above, not a new
+      # exception for this job.
+      - name: Fetch the submitted manual-tab.json at PR head
+        run: |
+          mkdir -p community-fixture
+          head_sha="${{ github.event.pull_request.head.sha }}"
+          gh api "repos/${{ github.repository }}/contents/manual-tab.json?ref=$head_sha" \
+            --jq '.content' | base64 -d > community-fixture/manual-tab.json
+
+      # Nightly, not stable: faderpunk-forge's check-manual shells out to
+      # ./gen-bindings.sh internally, which requires nightly (see that
+      # repo's AGENTS.md) — matches faderpunk's own CI convention for the
+      # same step (.github/workflows/ci.yml's check-configurator job).
+      # Nightly can build faderpunk-forge itself too (a plain stable-
+      # compatible crate), so one toolchain covers both.
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: nightly
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: latest
+
+      - name: Build faderpunk-forge CLI
+        working-directory: faderpunk-forge
+        run: cargo build --release -p faderpunk-forge
+
+      - name: Verify the manual entry injects and the configurator builds
+        run: |
+          ./faderpunk-forge/target/release/faderpunk-forge check-manual \
+            --community-path community-fixture
+
   # AI first-pass review: not wired up yet. Per the plan (see CONTRIBUTING.md
   # "Review"), this is meant to run once scope-check and build-check both
   # pass, and flag things the mechanical checks can't (API misuse that's
