@@ -1,1 +1,7 @@
-[]
+[
+  {
+    "appId": 100,
+    "module": "heat_pump",
+    "author": "kosmar"
+  }
+]
