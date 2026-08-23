@@ -1,1 +1,7 @@
-[]
+[
+  {
+    "appId": 111,
+    "module": "venn",
+    "author": "kosmar"
+  }
+]
