@@ -1,1 +1,40 @@
-[]
+[
+  {
+    "appId": 110,
+    "title": "Control Issues",
+    "description": "Shape CV and send it as MIDI control",
+    "icon": "attenuate",
+    "color": "Pink",
+    "text": "Control Issues shapes CV (linear, log, exp, S-curve, rectify, fold) and sends MIDI CC or NRPN. Supports slew, quantization, and gate or continuous input modes.",
+    "channels": [
+      {
+        "jackTitle": "CV In / Out",
+        "jackDescription": "Bipolar or unipolar CV in; shaped value as MIDI CC/NRPN.",
+        "faderTitle": "Slew / steps",
+        "faderDescription": "Main fader controls shaping parameters per latch layer.",
+        "fnTitle": "Mute / bypass",
+        "fnDescription": "Short tap mute; long bypass.",
+        "ledTop": "Output level",
+        "ledBottom": "Downbeat blink when clocked"
+      }
+    ],
+    "params": [
+      "Input Mode",
+      "Range",
+      "Transfer",
+      "Slew Mode",
+      "Steps",
+      "Output Min",
+      "Output Max",
+      "MIDI Channel",
+      "MIDI CC",
+      "MIDI NRPN",
+      "MIDI Out",
+      "Color"
+    ],
+    "storage": [
+      "Muted",
+      "Bypass"
+    ]
+  }
+]
