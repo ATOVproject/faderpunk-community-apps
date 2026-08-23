@@ -1,1 +1,7 @@
-[]
+[
+  {
+    "appId": 102,
+    "module": "fibonacci_gate",
+    "author": "kosmar"
+  }
+]
