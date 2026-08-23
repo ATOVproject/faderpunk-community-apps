@@ -1,1 +1,38 @@
-[]
+[
+  {
+    "appId": 107,
+    "title": "Hold Sam",
+    "description": "Clocked sample & hold to MIDI note/CC",
+    "icon": "note-box",
+    "color": "Cyan",
+    "text": "Hold Sam samples CV on clock ticks and sends MIDI note or CC. Bottom LED shows a spectrum meter of the held value.",
+    "channels": [
+      {
+        "jackTitle": "CV In",
+        "jackDescription": "Bipolar or unipolar CV to sample on each clock tick.",
+        "faderTitle": "Attenuverter",
+        "faderDescription": "Scales and inverts incoming CV before quantize.",
+        "fnTitle": "Mute",
+        "fnDescription": "Short tap mutes MIDI output.",
+        "ledTop": "Held value level",
+        "ledBottom": "Spectrum meter of display value"
+      }
+    ],
+    "params": [
+      "MIDI Mode",
+      "MIDI Channel",
+      "Base Note",
+      "CC number",
+      "Color",
+      "Range",
+      "MIDI Out",
+      "V/Oct",
+      "Bypass quantizer",
+      "Attenuverter",
+      "Base Velocity"
+    ],
+    "storage": [
+      "Muted"
+    ]
+  }
+]
