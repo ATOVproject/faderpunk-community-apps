@@ -42,5 +42,57 @@
       "Invert",
       "Muted"
     ]
+  },
+  {
+    "appId": 101,
+    "title": "Grooves",
+    "description": "Multi-genre MIDI drum grooves with feel",
+    "icon": "die",
+    "color": "Orange",
+    "text": "Grooves is a one-channel multi-genre drum helper with up to seven MIDI voices clock-synced in 4/4. **Groove** picks the genre family; **Density** and **Feel** shape fills and character; **Drummer** personas (long press) change ornament style. Swing depth is capped by **Swing max %** (sign = direction). Jack modes include Any/Stacked CV out and CV in for Density, Feel, or Reset. Clock-driven scheduling stays in a dedicated processor; MIDI sends run in a separate task (`pending_*` isolation).",
+    "channels": [
+      {
+        "jackTitle": "Jack output",
+        "jackDescription": "Any: velocity-weighted pulse per hit. Stacked: 1 V kick, 2 V snare, 4 V hats.",
+        "faderTitle": "Density",
+        "faderDescription": "Reveals extra drum hits as ghosts.",
+        "faderPlusFnTitle": "Feel",
+        "faderPlusFnDescription": "Attenuates groove character.",
+        "faderPlusShiftTitle": "Genre",
+        "faderPlusShiftDescription": "Scrub pattern families.",
+        "fnTitle": "Reset / Mute",
+        "fnDescription": "Short: downbeat. Long: mute.",
+        "fnPlusShiftTitle": "Reverse / Jack",
+        "fnPlusShiftDescription": "Short: reverse swing. Long: Any vs Stacked.",
+        "ledTop": "Bar position",
+        "ledTopPlusShift": "Genre color",
+        "ledTopPlusFn": "Feel (red)",
+        "ledBottom": "Hit flash"
+      }
+    ],
+    "params": [
+      "MIDI Note Kick",
+      "MIDI Note Snare",
+      "MIDI Note Hats",
+      "MIDI Note Open Hat",
+      "MIDI Note Low Tom",
+      "MIDI Note High Tom",
+      "MIDI Note Clap",
+      "MIDI Ch",
+      "Ch Map",
+      "Groove",
+      "Swing max %",
+      "GATE %",
+      "MIDI Out",
+      "Jack",
+      "CV Att",
+      "Drummer"
+    ],
+    "storage": [
+      "Feel",
+      "Density",
+      "Muted",
+      "Drummer"
+    ]
   }
 ]
