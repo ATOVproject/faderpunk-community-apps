@@ -1,1 +1,46 @@
-[]
+[
+  {
+    "appId": 100,
+    "title": "Heat Pump",
+    "description": "Clock-synced sidechain ducking: hold + log release",
+    "icon": "ad-env",
+    "color": "Pink",
+    "text": "Heat Pump is a clock-synced sidechain ducking envelope: on each division the CV ducks, holds briefly, then recovers with a logarithmic release. Patch CV Out to a filter or VCA; MIDI CC mirrors when Out is enabled.\n\nMain sets release speed. Shift + fader sets depth. Button + fader picks clock division. Short tap triggers one manual duck. Long press mutes without snapping to idle. Shift + long toggles invert.",
+    "channels": [
+      {
+        "jackTitle": "Jack",
+        "jackDescription": "CV Out = duck envelope; CV In modulates Depth, Release, or triggers Duck.",
+        "faderTitle": "Release",
+        "faderDescription": "Log recovery after hold.",
+        "faderPlusFnTitle": "Division",
+        "faderPlusFnDescription": "Button + fader picks clock division.",
+        "faderPlusShiftTitle": "Depth",
+        "faderPlusShiftDescription": "Duck amount per division.",
+        "fnTitle": "Trigger / mute",
+        "fnDescription": "Short = manual duck; Long = mute.",
+        "ledTop": "Envelope level",
+        "ledBottom": "Division color on Button LED",
+        "fnPlusShiftTitle": "Invert",
+        "fnPlusShiftDescription": "Shift + long toggles invert."
+      }
+    ],
+    "params": [
+      "Color",
+      "Range",
+      "MIDI Channel",
+      "MIDI CC",
+      "MIDI NRPN",
+      "MIDI Out",
+      "Jack",
+      "CV Dest",
+      "CV Att"
+    ],
+    "storage": [
+      "Release",
+      "Depth",
+      "Division",
+      "Invert",
+      "Muted"
+    ]
+  }
+]
