@@ -75,7 +75,7 @@ jobs:
         run: |
           dist=$(./faderpunk-forge/target/release/faderpunk-forge build-manual \
             --community-path faderpunk-community-apps \
-            --base-path "${{ steps.pages.outputs.base_path }}/")
+            --base-path "${{ steps.pages.outputs.base_path }}/" | tail -n1)
           echo "dist=$dist" >> "$GITHUB_OUTPUT"
 
       - name: Upload Pages artifact
