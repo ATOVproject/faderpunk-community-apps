@@ -1250,12 +1250,11 @@ fn mix_samples(a: u16, b: u16, mode: usize, balance: u16) -> u16 {
     }
 }
 
-/// Spectrum sweep: morph 0..=4095 → hue 0°..270°
-/// (infrared/red → yellow → green → cyan → blue → ultraviolet/violet).
-/// No wrap back to red — same IR→UV convention as other WIP meters.
+/// Even spectrum sweep: morph 0..=4095 → full hue circle 0°..360°
+/// (red → yellow → green → cyan → blue → magenta → red), via HSV.
 fn morph_color(morph: u16) -> Color {
-    let hue = (morph.min(4095) as u32 * 270 / 4095) as u16;
-    let (r, g, b) = hsv_to_rgb(hue);
+    let hue = (morph.min(4095) as u32 * 360) / 4096; // degrees, wraps red→red
+    let (r, g, b) = hsv_to_rgb(hue as u16);
     Color::Custom(r, g, b)
 }
 
