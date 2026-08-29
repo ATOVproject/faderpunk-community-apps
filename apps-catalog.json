@@ -98,5 +98,10 @@
     "appId": 119,
     "module": "axis_matrix",
     "author": "kosmar"
+  },
+  {
+    "appId": 120,
+    "module": "sift",
+    "author": "thorinside"
   }
 ]
