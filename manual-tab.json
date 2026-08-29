@@ -5,7 +5,7 @@
     "description": "MIDI/CV delay with feedback and pitch shift",
     "icon": "sine",
     "color": "Cyan",
-    "text": "Echolot is a MIDI/CV delay with feedback, mix, and optional pitch shift on each repeat.",
+    "text": "Echolot is a MIDI/CV delay with feedback, mix, and optional pitch shift on each repeat.\n\n### Cheatsheet\n\nDelay with feedback and optional pitch intervals. I/O picks MIDI/CV routing; Ping-Pong alternates MIDI Out A/B (MIDI→MIDI and CV→MIDI). Mute = ring-out (block new input; queue plays out). Long Panic clears the trail — Third interval edits never panic that hold. MIDI In always flashes white for diagnosis when muted.\n\n**Faders**\n\n- **Main** — Delay (up = shorter / faster)\n\n**Buttons**\n\n- **Long** — Panic (clear queue); skipped if Third used this hold\n\n**LEDs**\n\n- White flash on MIDI/gate in (~20% when muted)\n- Ping-Pong: Top = Out A · Bottom = Out B\n\n**Params**\n\n- Routing: Single / Ping-Pong",
     "channels": [
       {
         "jackTitle": "CV",
