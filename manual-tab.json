@@ -5,7 +5,7 @@
     "description": "Clocked sample & hold to MIDI note/CC",
     "icon": "note-box",
     "color": "Cyan",
-    "text": "Hold Sam samples CV on clock ticks and sends MIDI note or CC. Bottom LED shows a spectrum meter of the held value.",
+    "text": "Hold Sam samples CV on clock ticks and sends MIDI note or CC. Bottom LED shows a spectrum meter of the held value.\n\n### Cheatsheet\n\nClocked sample-and-hold. Capture on division or Shift+Short; Main shapes gate length or CC depth. Long soft-mutes so notes can ring out. Third sets how strongly velocity follows the sample.\n\n**Buttons**\n\n- **Long** (no fader move) — Soft mute (fade; no hard note-off)\n\n**Params / LEDs**\n\n- Layer meters: IR→UV spectrum on Main/Alt/Third fader",
     "channels": [
       {
         "jackTitle": "CV In",
