@@ -5,7 +5,7 @@
     "description": "Shape CV and send it as MIDI control",
     "icon": "attenuate",
     "color": "Pink",
-    "text": "Control Issues shapes CV (linear, log, exp, S-curve, rectify, fold) and sends MIDI CC or NRPN. Supports slew, quantization, and gate or continuous input modes.",
+    "text": "Control Issues shapes CV (linear, log, exp, S-curve, rectify, fold) and sends MIDI CC or NRPN. Supports slew, quantization, and gate or continuous input modes.\n\n### Cheatsheet\n\n1-channel CV→MIDI sculptor. Defaults are transparent (+100 % att, 0 offset, 0 slew, Linear, full CC window, 100 Hz). Gate mode runs a Schmitt threshold (0.1 V hysteresis) then the same pipeline. Mute sends Output Min once and goes silent; unmute resends the live value. Watch the button LED for level — fader LEDs stay dark. Uses clock ticker only (no CLOCK_PUBSUB). No clock → no downbeat blink.\n\n**Faders**\n\n- **Main** — Attenuverter −100…+100 % (center deadband = 0)\n\n**Buttons**\n\n- **Shift+Hold** — momentary Bypass (keeps Range / Min-Max / Rate)\n\n**Params / LEDs**\n\n- Button LED only: Main = app color × out; Alt = red × |offset|; Third = cyan × slew (floor so hue stays visible at 0)",
     "channels": [
       {
         "jackTitle": "CV In / Out",
