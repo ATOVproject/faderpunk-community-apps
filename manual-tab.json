@@ -5,7 +5,7 @@
     "description": "Additive overdub loop with level decay",
     "icon": "sequence",
     "color": "Violet",
-    "text": "Clocked overdub loop: play while armed to capture; each wrap applies Alt\nstrength through the selected Decay Mode (0 = freeze forever). Pitch modes stay\non the global scale. Random jitters scale pitch and only lowers velocity. Gate\nshortens duration toward a 16th floor. Hold the button for long notes — mute is\nShift+Long. Hold+Fader glissandos through scale degrees toward the fader\n(Chord Vamp–style). Length is Shift+Short (1–8 bars), not Alt/Third. Third picks\nDecay Mode (Configurator sync). Quantized to 16ths.",
+    "text": "Clocked overdub loop: play while armed to capture; each wrap applies Alt\nstrength through the selected Decay Mode (0 = freeze forever). Pitch modes stay\non the global scale. Random jitters scale pitch and only lowers velocity. Gate\nshortens duration toward a 16th floor. Hold the button for long notes — mute is\nShift+Long. Hold+Fader glissandos through scale degrees toward the fader\n(Chord Vamp–style). Length is Shift+Short (1–8 bars), not Alt/Third. Third picks\nDecay Mode (Configurator sync). Quantized to 16ths.\n\n### Cheatsheet\n\n**Params / LEDs**\n\n- Capture/playback hit: sharp button 80% dim (~2 PPQN) + Top white; layer meters on Top/Bottom/Button",
     "channels": [
       {
         "jackTitle": "CV / gate",
