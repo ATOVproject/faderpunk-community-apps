@@ -9,10 +9,7 @@ use serde::{Deserialize, Serialize};
 use libfp::{
     ext::FromValue,
     latch::LatchLayer,
-    utils::{
-        attenuverter, clickless, division_at, lfo_step, midi_gate, signal_brightness,
-        split_unsigned_value,
-    },
+    utils::{attenuverter, clickless, midi_gate, split_unsigned_value},
     AppIcon, Brightness, ClockDivision, Color, Config, Curve, MidiCc, MidiChannel, MidiMode,
     MidiNote, MidiOut,
     Param, Range, Value, APP_MAX_PARAMS,
@@ -45,6 +42,29 @@ const FADER_MOVE_THRESH: u16 = 64;
 const FILTER_FS: f32 = 1000.0;
 const CUTOFF_MIN_HZ: f32 = 0.1;
 const CUTOFF_MAX_HZ: f32 = 200.0;
+
+const CLOCK_DIVISIONS: [u32; 13] = [384, 192, 96, 48, 24, 16, 12, 8, 6, 4, 3, 2, 1];
+
+fn division_at(fader: u16, count: usize) -> u32 {
+    let count = count.clamp(1, CLOCK_DIVISIONS.len());
+    let idx = (fader.min(4095) as usize * count / 4096).min(count - 1);
+    CLOCK_DIVISIONS[idx]
+}
+
+fn lfo_step(speed: u16) -> f32 {
+    (Curve::Exponential.at(speed) as f32 + 2047.0 - 2047.0) * 0.015 + 0.0682
+}
+
+fn signal_brightness(value: u16, bipolar: bool) -> Brightness {
+    const MIN: u8 = 110;
+    let raw = if bipolar {
+        ((value.min(4095) as i32 - 2047).unsigned_abs() / 8).min(255) as u8
+    } else {
+        (value.min(4095) / 16) as u8
+    };
+    let span = 255u16 - MIN as u16;
+    Brightness::Custom(MIN + ((raw as u16 * span) / 255) as u8)
+}
 
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[repr(u8)]
@@ -327,14 +347,6 @@ pub async fn run(
     params: &ParamStore<Params>,
     storage: &ManagedStorage<Storage>,
 ) {
-    app.wait_while_perf_muted().await;
-
-    // Keep Param Mode in sync with last scene/storage value.
-    {
-        let mode = FilterMode::from_usize(storage.query(|s| s.mode as usize));
-        let _ = params.update(|p| p.mode = mode).await;
-    }
-
     let (led_color, range, midi_out, midi_chan) =
         params.query(|p| (p.color, p.range, p.midi_out, p.midi_channel));
 
@@ -358,6 +370,8 @@ pub async fn run(
     let glob_div = app.make_global(24u32);
     let glob_chaos = app.make_global(MorphChaos::new());
     let glob_muted = app.make_global(storage.query(|s| s.muted));
+    let glob_mode =
+        app.make_global(FilterMode::from_usize(storage.query(|s| s.mode as usize)));
     let glob_mode_preview = app.make_global(None::<FilterMode>);
     let glob_mode_to_morph = app.make_global(0u16);
     let glob_base_hue = app.make_global(color_hue(led_color));
@@ -377,7 +391,7 @@ pub async fn run(
     };
     time_calc();
 
-    let initial_mode = params.query(|p| p.mode);
+    let initial_mode = glob_mode.get();
     if !glob_muted.get() {
         leds.set(
             0,
@@ -485,7 +499,7 @@ pub async fn run(
 
             let mode = glob_mode_preview
                 .get()
-                .unwrap_or_else(|| params.query(|p| p.mode));
+                .unwrap_or_else(|| glob_mode.get());
             let filtered = match mode {
                 FilterMode::Lp => lp,
                 FilterMode::Hp => hp,
@@ -832,9 +846,9 @@ pub async fn run(
                 continue;
             }
             // Commit on long register; solid mode color until release (no blink).
-            let next = params.query(|p| p.mode).next();
+            let next = glob_mode.get().next();
             storage.modify_and_save(|s| s.mode = next as u8);
-            params.update(|p| p.mode = next).await;
+            glob_mode.set(next);
             glob_mode_to_morph.set(0);
             glob_mode_preview.set(Some(next));
             leds.set(
@@ -892,7 +906,7 @@ pub async fn run(
                     leds.set(
                         0,
                         Led::Button,
-                        params.query(|p| p.mode).color(glob_base_hue.get()),
+                        glob_mode.get().color(glob_base_hue.get()),
                         BUTTON_BRIGHTNESS,
                     );
                 }
@@ -909,7 +923,7 @@ pub async fn run(
                     storage.load_from_scene(scene).await;
                     let (mode, muted) =
                         storage.query(|s| (FilterMode::from_usize(s.mode as usize), s.muted));
-                    params.update(|p| p.mode = mode).await;
+                    glob_mode.set(mode);
                     glob_muted.set(muted);
                     time_calc();
                 }
