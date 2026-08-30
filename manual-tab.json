@@ -94,5 +94,66 @@
       "Muted",
       "Drummer"
     ]
+  },
+  {
+    "appId": 120,
+    "title": "Semmy",
+    "description": "CV state-variable filter (LP/HP/BP/Notch)",
+    "icon": "attenuate",
+    "color": "Cyan",
+    "text": "CV in, filtered CV out. A Chamberlin state-variable filter runs at 1 kHz with cutoff roughly 0.1–200 Hz and four modes: LP, HP, BP and Notch. Main faders are always Cutoff and Q; Shift layers switch between output offset/attenverter while CV is active and LFO speed/attenverter while the internal morph LFO runs. Btn0 hold on ch0 scrubs morph in LFO mode; Btn1 hold on ch1 scrubs dry/wet (0 = pre-filter source, full = filtered).\n\nWith no input movement for about 1.2 s the jack is treated as idle and a morphing LFO (same engine as Super LFO) feeds the filter instead — movement on the jack switches back to CV immediately. **LFO Speed** shifts the whole internal rate range to Slow or Slowest. Shift + short press on ch0 toggles clock sync while the LFO is active.\n\nShort tap on Btn0 mutes (output parks at 0 V unipolar or mid-scale bipolar; MIDI is silenced too). Long press cycles filter mode on release; the mode is stored and synced to the configurator. LEDs split by source: CV mode colours Btn0 by filter mode; LFO mode paints Btn0 and the top LED with morph hues, with a brief mode flash after a long press. Ch1 meters the output.\n\nOptional MIDI Out mirrors the same post-filter, post-att/offset level. **MIDI Mode** CC sends gated controller data; Note maps output across two octaves above **Base Note** (full-scale = +24 semitones). CV jacks stay CV-only.",
+    "channels": [
+      {
+        "jackTitle": "CV In",
+        "jackDescription": "CV input. Set Range to 0–10 V for unipolar sources or ±5 V for bipolar. With no movement for about 1.2 s the internal morph LFO takes over.",
+        "faderTitle": "Cutoff / LFO Speed",
+        "faderDescription": "Main: filter cutoff. Alt while the internal LFO runs: LFO rate (or clock division when sync is on). Alt while CV is active: output offset.",
+        "ledTop": "Morph hue while the internal LFO runs; red offset level while Shift is held",
+        "ledBottom": "Red offset level while Shift is held",
+        "faderPlusFnTitle": "Morph",
+        "faderPlusFnDescription": "While the internal LFO runs, Btn0 hold + fader scrubs morph.",
+        "faderPlusShiftTitle": "Offset / Morph",
+        "faderPlusShiftDescription": "CV: output offset after the filter. Internal LFO: morph amount on the wave (Third layer while Btn0 is held).",
+        "fnTitle": "Mute / Mode",
+        "fnDescription": "Short tap mutes the output. Long press cycles LP → HP → BP → Notch (mode color until release).",
+        "fnPlusShiftTitle": "LFO Clock Sync",
+        "fnPlusShiftDescription": "While the internal LFO runs, toggles free-running vs clock-synced. The button flashes when sync engages."
+      },
+      {
+        "jackTitle": "CV Out",
+        "jackDescription": "Dry/wet mix of the filter source and filtered CV, after attenuverter and offset.",
+        "faderTitle": "Q / Att / Dry·Wet",
+        "faderDescription": "Main: filter resonance (stable, no self-oscillation). Alt: output attenuverter. Third (Btn1 hold): dry/wet (0 = pre-filter source, full = filtered).",
+        "ledTop": "Output level, red att while Shift, or cyan dry/wet while Btn1 is held",
+        "ledBottom": "Output level, or red att while Shift is held",
+        "faderPlusFnTitle": "Dry/Wet",
+        "faderPlusFnDescription": "Btn1 hold + fader: blend dry source into filtered output.",
+        "faderPlusShiftTitle": "Attenuverter",
+        "faderPlusShiftDescription": "Scales the mixed signal before the jack."
+      }
+    ],
+    "params": [
+      "Color",
+      "Range",
+      "Mode",
+      "LFO Speed",
+      "MIDI Mode",
+      "MIDI Channel",
+      "Base Note",
+      "CC number",
+      "MIDI Out"
+    ],
+    "storage": [
+      "Cutoff",
+      "Q",
+      "Attenuverter",
+      "Offset",
+      "Mode",
+      "Muted",
+      "LFO Speed",
+      "Morph",
+      "LFO Clocked",
+      "Dry/Wet"
+    ]
   }
 ]
