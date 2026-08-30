@@ -94,5 +94,54 @@
       "Muted",
       "Drummer"
     ]
+  },
+  {
+    "appId": 121,
+    "title": "Umbra",
+    "description": "Bass shadow companion to Contura — root/5th/approach lines over shared 12-TET scale sets, anchored to the device tonic",
+    "icon": "note",
+    "color": "Violet",
+    "text": "Bass shadow companion to Contura: independent root/5th/approach phrases over\nthe same selectable 12-TET pitch-class sets, anchored to the device quantizer tonic.\nNo runtime coupling — phrases do not sync with Contura; both apps can follow the\ndevice tonic and scale so they stay in the same key without sharing phrase length\nor contour.\n\nPitch stays in a low register (Base Note default ~36, C2) with a hard fold within\nBase±1 octave. The interval fader controls **wander** — how far each step may\ndrift from the root (tight root/5th at the bottom, wider bass motion at the top).\n**BassFeel** per scale set shapes root bias, approach weight, ghost density and\noctave-punch; there are no voice personas. Brief bass ornaments — diatonic\napproaches, ghost neighbours and octave-punch — come from BassFeel and phrase\nposition, not from Contura's contour ornament module.\n\n**Hybrid density** mixes Contura-style rests at low settings with ghost approach\nnotes from mid upward. Phrase length uses the same latch shell as Contura but\nruns on its own counter.\n\nScale-set names are conventional labels for interval patterns (Western modes\nand other named collections on equal footing). They are not claims about living\nmusical practice or authentic intonation.\n\nNeeds a running clock. Jack = CV Out (pitch, 1V/oct) or CV In (Density /\nInterval / Reset / Phrase + CV Att), set in the Configurator. CV on Phrase\nstretches and shortens the bass line independently of Contura. Gates via MIDI\nnote on/off. Shift+Short toggles octave span 1→2 (not Contura's 1→4).\n\n**Follow device tonic** (default on) transposes with the device Tonic like Contura.\n**Follow device scale** (default off) swaps the Scale set for the device Scale.\n\n**Contura** (app 113) is the melodic contour line above — pair them on adjacent\nchannels for shadow-and-light, or run either app alone.",
+    "channels": [
+      {
+        "jackTitle": "Pitch CV / CV In",
+        "jackDescription": "CV Out: quantized bass pitch (1V/oct / range). CV In: modulates Density, Interval or Phrase, or Reset (gate) — Dest + Att in Configurator. Gate is MIDI note on/off.",
+        "faderTitle": "Interval",
+        "faderDescription": "Wander budget from the root — bottom stays on root/5th, mid opens diatonic approaches, top allows wider distance-from-root motion within the octave span",
+        "faderPlusShiftTitle": "Phrase length",
+        "faderPlusShiftDescription": "How many steps before the bass line resets (3–28); independent from Contura's phrase clock",
+        "faderPlusFnTitle": "Density",
+        "faderPlusFnDescription": "Hybrid note rate — sparse rests ↔ continuous; mid and up add ghost approach notes between main hits",
+        "fnTitle": "Mute",
+        "fnDescription": "Short press mutes/unmutes. Long press steps to the next scale set.",
+        "fnPlusShiftTitle": "Octaves / scale",
+        "fnPlusShiftDescription": "Shift+Short = octave span 1→2 · Shift+Long = previous scale set",
+        "ledTop": "Gate / note-on cue (app color)",
+        "ledBottom": "Pitch height within the current span",
+        "ledTopPlusShift": "Octave-span color blink after Shift+Short"
+      }
+    ],
+    "params": [
+      "MIDI Channel",
+      "Base Note",
+      "Color",
+      "MIDI Out",
+      "Range",
+      "VoltPerOct",
+      "Follow device tonic",
+      "Follow device scale",
+      "Scale set",
+      "Division",
+      "Jack",
+      "CV Att"
+    ],
+    "storage": [
+      "Interval",
+      "Phrase length",
+      "Density",
+      "Scale set",
+      "Octaves",
+      "Muted"
+    ]
   }
 ]

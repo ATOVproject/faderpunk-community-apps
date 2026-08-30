@@ -8,5 +8,10 @@
     "appId": 101,
     "module": "grooves",
     "author": "kosmar"
+  },
+  {
+    "appId": 121,
+    "module": "umbra",
+    "author": "kosmar"
   }
 ]
