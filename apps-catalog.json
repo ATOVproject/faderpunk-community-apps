@@ -28,5 +28,10 @@
     "appId": 114,
     "module": "manifold",
     "author": "kosmar"
+  },
+  {
+    "appId": 115,
+    "module": "ripppple",
+    "author": "kosmar"
   }
 ]
