@@ -93,5 +93,10 @@
     "appId": 118,
     "module": "giant_steps",
     "author": "kosmar"
+  },
+  {
+    "appId": 119,
+    "module": "axis_matrix",
+    "author": "kosmar"
   }
 ]
