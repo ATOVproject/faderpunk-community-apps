@@ -458,5 +458,57 @@
       "In Offset",
       "In Slew"
     ]
+  },
+  {
+    "appId": 116,
+    "title": "Dit Dah",
+    "description": "ITU Morse phrase player with 16th-quantized note-ons",
+    "icon": "sequence-square",
+    "color": "Orange",
+    "text": "Dit Dah plays packed ASCII Morse phrases as MIDI notes, quantized so each dit/dah starts on a 16th. It needs clock: MIDI Start/Reset or the first 16th after ticks appear (analog clock on Atom/Meteor/Cube has no transport) arms playback; after that the phrase loops without waiting for bar resets. Stop silences everything.\n\nJack is one CV: CV Out Gate, CV Out Pitch (0\u201310 V, V/Oct), CV In Gate (\u00b15 V rising edge arms like long press), or CV In Dit length / Pitch offset / Dah interval. CV In dests add \u00b15 V bipolar on top of the saved fader at playback \u2014 not written to storage. Unpatched \u00b15 V \u2248 centre, so no change. MIDI notes always fire.\n\nMain sets dit length from a 30 ms floor up to four 16ths of the current tick. Dahs last three dits. Alt transposes the whole phrase. Third (deadzone) adds the Dah interval param only onto dahs. ITU gaps (1 / 3 / 7) stay; invert only swaps tone lengths and flips the fader mappings at playback.\n\nShort press mutes (Button LED off). Shift+short toggles texture: random MIDI velocity and swing on odd 16ths (Bottom LED white). Long press retriggers \u2014 arms the next 16th like CV In Gate. Shift+long inverts dit\u2194dah and flips speed/pitch at playback (Button LED white when unmuted; orange when normal). Phrase 1 defaults to SOS.",
+    "channels": [
+      {
+        "jackTitle": "Jack",
+        "jackDescription": "CV Out Gate / CV Out Pitch (0\u201310 V V/Oct), CV In Gate (\u00b15 V rising edge arms like long press), or CV In Dit length / Pitch offset / Dah interval (\u00b15 V bipolar add at playback only). MIDI notes always fire.",
+        "faderTitle": "Dit length",
+        "faderDescription": "Duration of a dit in milliseconds, from 30 ms up to four 16th-notes of the incoming clock. Dah is 3\u00d7 dit.",
+        "faderPlusFnTitle": "Dah interval",
+        "faderPlusFnDescription": "Adds the Interval param onto dahs only (deadzone around centre). Dits stay on the Alt-offset pitch.",
+        "faderPlusShiftTitle": "Pitch offset",
+        "faderPlusShiftDescription": "Bipolar transposition of the whole phrase around Base note, up to \u00b148 semitones.",
+        "fnTitle": "Mute / long = re-arm",
+        "fnDescription": "Short tap mutes MIDI and CV. Long press arms playback on the next 16th.",
+        "ledTop": "Orange high while a tone is sounding",
+        "ledBottom": "White when texture is on; off when texture is off",
+        "fnPlusShiftTitle": "Texture / invert",
+        "fnPlusShiftDescription": "Shift+short toggles texture (random MIDI velocity + odd-16th swing). Shift+long inverts dit\u2194dah and flips speed/pitch at playback."
+      }
+    ],
+    "params": [
+      "MIDI Out",
+      "MIDI Channel",
+      "Base note",
+      "Interval",
+      "Jack",
+      "V/Oct",
+      "Phrase 1",
+      "Phrase 2",
+      "Phrase 3",
+      "Phrase 4",
+      "Phrase 5",
+      "Phrase 6",
+      "Phrase 7",
+      "Phrase 8",
+      "Phrase 9",
+      "Phrase 10"
+    ],
+    "storage": [
+      "Dit length",
+      "Pitch offset",
+      "Dah interval blend",
+      "Muted",
+      "Inverted",
+      "Texture"
+    ]
   }
 ]

@@ -33,5 +33,10 @@
     "appId": 115,
     "module": "ripppple",
     "author": "kosmar"
+  },
+  {
+    "appId": 116,
+    "module": "dit_dah",
+    "author": "kosmar"
   }
 ]
