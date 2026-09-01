@@ -45,6 +45,11 @@
     "author": "kosmar"
   },
   {
+    "appId": 102,
+    "module": "fibonacci_gate",
+    "author": "kosmar"
+  },
+  {
     "appId": 103,
     "module": "super_lfo",
     "author": "kosmar"
