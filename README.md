@@ -1,8 +1,10 @@
 # faderpunk-community-apps
 
-Community-submitted apps for [Faderpunk](https://github.com/ATOVproject/faderpunk) — unofficial, unmaintained by the core team, and without guarantees. Building a firmware that includes any of these is opt-in, via [`faderpunk-store`](https://github.com/ATOVproject/faderpunk-store).
+Community-submitted apps for [Faderpunk](https://github.com/ATOVproject/faderpunk) — unofficial, unmaintained by the core team, and without guarantees. Building a firmware that includes any of these is opt-in, via [`faderpunk-forge`](https://github.com/ATOVproject/faderpunk-forge).
 
 This repo contains *only* apps, their manual entries, and a catalog — nothing else. See [CONTRIBUTING.md](CONTRIBUTING.md) for the submission format and rules.
+
+Browse what each community app does before building anything: **[the community manual](https://atovproject.github.io/faderpunk-community-apps/#/manual)** — same look as the official manual, deployed straight from this repo's current catalog on every merge to `main`.
 
 ## Layout
 
