@@ -866,5 +866,50 @@
       "Muted",
       "Voicing preset"
     ]
+  },
+  {
+    "appId": 109,
+    "title": "Loop de Cay",
+    "description": "Additive overdub loop with level decay",
+    "icon": "sequence",
+    "color": "Violet",
+    "text": "Clocked overdub loop: play while armed to capture; each wrap applies Alt\nstrength through the selected Decay Mode (0 = freeze forever). Pitch modes stay\non the global scale. Random jitters scale pitch and only lowers velocity. Gate\nshortens duration toward a 16th floor. Hold the button for long notes \u2014 mute is\nShift+Long. Hold+Fader glissandos through scale degrees toward the fader\n(Chord Vamp\u2013style). Length is Shift+Short (1\u20138 bars), not Alt/Third. Third picks\nDecay Mode (Configurator sync). Quantized to 16ths.\n\n### Cheatsheet\n\n**Params / LEDs**\n\n- Capture/playback hit: sharp button 80% dim (~2 PPQN) + Top white; layer meters on Top/Bottom/Button",
+    "channels": [
+      {
+        "jackTitle": "CV / gate",
+        "jackDescription": "Depends on Mode (Pitch\u2192MIDI / Gate\u2192MIDI use CV In; MIDI\u2192CV / Fader\u2192Both use CV Out)",
+        "faderTitle": "Pitch",
+        "faderDescription": "Span around Base Note; quantized to global scale. Pitch\u2192MIDI adds it to the CV pitch as a transpose",
+        "faderPlusFnTitle": "Decay Mode",
+        "faderPlusFnDescription": "Seven zones IR\u2192UV (Btn+Fader; gate modes while muted)",
+        "faderPlusShiftTitle": "Decay strength",
+        "faderPlusShiftDescription": "0 = immortal; higher \u2248 fewer wraps to silence",
+        "fnTitle": "Gate / play",
+        "fnDescription": "Hold for note in gate modes; Hold+Fader = glissando.",
+        "ledTop": "Pitch / decay / mode meters",
+        "ledBottom": "Pitch / decay / mode meters",
+        "fnPlusShiftTitle": "Bars / mute",
+        "fnPlusShiftDescription": "Shift + short = bars; Shift + long = mute/erase."
+      }
+    ],
+    "params": [
+      "Mode",
+      "MIDI Channel",
+      "MIDI In",
+      "MIDI Out",
+      "Base Note",
+      "Span",
+      "Color",
+      "Range",
+      "V/Oct",
+      "Decay Mode"
+    ],
+    "storage": [
+      "Main pitch fader",
+      "Decay strength",
+      "Bars",
+      "Muted",
+      "Armed"
+    ]
   }
 ]
