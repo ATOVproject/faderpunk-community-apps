@@ -653,7 +653,7 @@ async fn handle_midi_note_off(
     }
 }
 
-#[embassy_executor::task(pool_size = 16)]
+#[embassy_executor::task(pool_size = 16/CHANNELS)]
 pub async fn wrapper(app: App<CHANNELS>, exit_signal: &'static Signal<NoopRawMutex, bool>) {
     let param_store = ParamStore::<Params>::new(
         app.app_id,
