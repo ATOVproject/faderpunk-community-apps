@@ -10,6 +10,16 @@ name: Community app submission check
 on:
   pull_request:
     types: [opened, synchronize, reopened]
+    # Only a submission-shaped PR needs this gate at all -- an infra/CI
+    # change (a new workflow file, a script fix, etc.) isn't a community
+    # app submission and will always fail the "exactly one app" scope
+    # check by construction. Scoping the trigger, not the check itself,
+    # keeps the check exactly as strict as it already is for the PRs it's
+    # meant to gate.
+    paths:
+      - "apps/**"
+      - "apps-catalog.json"
+      - "manual-tab.json"
 
 permissions:
   contents: read
