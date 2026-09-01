@@ -18,5 +18,10 @@
     "appId": 110,
     "module": "control_issues",
     "author": "kosmar"
+  },
+  {
+    "appId": 111,
+    "module": "venn",
+    "author": "kosmar"
   }
 ]
