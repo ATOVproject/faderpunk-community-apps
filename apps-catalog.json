@@ -45,6 +45,56 @@
     "author": "kosmar"
   },
   {
+    "appId": 102,
+    "module": "fibonacci_gate",
+    "author": "kosmar"
+  },
+  {
+    "appId": 103,
+    "module": "super_lfo",
+    "author": "kosmar"
+  },
+  {
+    "appId": 105,
+    "module": "arp_de_levy",
+    "author": "kosmar"
+  },
+  {
+    "appId": 106,
+    "module": "vamp",
+    "author": "kosmar"
+  },
+  {
+    "appId": 107,
+    "module": "hold_sam",
+    "author": "kosmar"
+  },
+  {
+    "appId": 108,
+    "module": "harmonica",
+    "author": "kosmar"
+  },
+  {
+    "appId": 109,
+    "module": "loop_de_cay",
+    "author": "kosmar"
+  },
+  {
+    "appId": 112,
+    "module": "bassment",
+    "author": "kosmar"
+  },
+  {
+    "appId": 113,
+    "module": "contura",
+    "author": "kosmar"
+  },
+  {
+    "appId": 118,
+    "module": "giant_steps",
+    "author": "kosmar"
+  },
+  {
     "appId": 119,
     "module": "axis_matrix",
     "author": "kosmar"
