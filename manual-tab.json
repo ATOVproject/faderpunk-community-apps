@@ -1,11 +1,107 @@
 [
   {
+    "appId": 100,
+    "title": "Heat Pump",
+    "description": "Clock-synced sidechain ducking: hold + log release",
+    "icon": "ad-env",
+    "color": "Pink",
+    "text": "Heat Pump is a clock-synced sidechain ducking envelope: on each division the CV ducks, holds briefly, then recovers with a logarithmic release. Patch CV Out to a filter or VCA; MIDI CC mirrors when Out is enabled.\n\nMain sets release speed. Shift + fader sets depth. Button + fader picks clock division. Short tap triggers one manual duck. Long press mutes without snapping to idle. Shift + long toggles invert.",
+    "channels": [
+      {
+        "jackTitle": "Jack",
+        "jackDescription": "CV Out = duck envelope; CV In modulates Depth, Release, or triggers Duck.",
+        "faderTitle": "Release",
+        "faderDescription": "Log recovery after hold.",
+        "faderPlusFnTitle": "Division",
+        "faderPlusFnDescription": "Button + fader picks clock division.",
+        "faderPlusShiftTitle": "Depth",
+        "faderPlusShiftDescription": "Duck amount per division.",
+        "fnTitle": "Trigger / mute",
+        "fnDescription": "Short = manual duck; Long = mute.",
+        "ledTop": "Envelope level",
+        "ledBottom": "Division color on Button LED",
+        "fnPlusShiftTitle": "Invert",
+        "fnPlusShiftDescription": "Shift + long toggles invert."
+      }
+    ],
+    "params": [
+      "Color",
+      "Range",
+      "MIDI Channel",
+      "MIDI CC",
+      "MIDI NRPN",
+      "MIDI Out",
+      "Jack",
+      "CV Dest",
+      "CV Att"
+    ],
+    "storage": [
+      "Release",
+      "Depth",
+      "Division",
+      "Invert",
+      "Muted"
+    ]
+  },
+  {
+    "appId": 101,
+    "title": "Grooves",
+    "description": "Multi-genre MIDI drum grooves with feel",
+    "icon": "die",
+    "color": "Orange",
+    "text": "Grooves is a one-channel multi-genre drum helper with up to seven MIDI voices clock-synced in 4/4. **Groove** picks the genre family; **Density** and **Feel** shape fills and character; **Drummer** personas (long press) change ornament style. Swing depth is capped by **Swing max %** (sign = direction). Jack modes include Any/Stacked CV out and CV in for Density, Feel, or Reset. Clock-driven scheduling stays in a dedicated processor; MIDI sends run in a separate task (`pending_*` isolation).",
+    "channels": [
+      {
+        "jackTitle": "Jack output",
+        "jackDescription": "Any: velocity-weighted pulse per hit. Stacked: 1 V kick, 2 V snare, 4 V hats.",
+        "faderTitle": "Density",
+        "faderDescription": "Reveals extra drum hits as ghosts.",
+        "faderPlusFnTitle": "Feel",
+        "faderPlusFnDescription": "Attenuates groove character.",
+        "faderPlusShiftTitle": "Genre",
+        "faderPlusShiftDescription": "Scrub pattern families.",
+        "fnTitle": "Reset / Mute",
+        "fnDescription": "Short: downbeat. Long: mute.",
+        "fnPlusShiftTitle": "Reverse / Jack",
+        "fnPlusShiftDescription": "Short: reverse swing. Long: Any vs Stacked.",
+        "ledTop": "Bar position",
+        "ledTopPlusShift": "Genre color",
+        "ledTopPlusFn": "Feel (red)",
+        "ledBottom": "Hit flash"
+      }
+    ],
+    "params": [
+      "MIDI Note Kick",
+      "MIDI Note Snare",
+      "MIDI Note Hats",
+      "MIDI Note Open Hat",
+      "MIDI Note Low Tom",
+      "MIDI Note High Tom",
+      "MIDI Note Clap",
+      "MIDI Ch",
+      "Ch Map",
+      "Groove",
+      "Swing max %",
+      "GATE %",
+      "MIDI Out",
+      "Jack",
+      "CV Att",
+      "Drummer"
+    ],
+    "storage": [
+      "Feel",
+      "Density",
+      "Muted",
+      "Drummer"
+    ]
+  },
+  {
     "appId": 104,
     "title": "Echolot",
     "description": "MIDI/CV delay with feedback and pitch shift",
     "icon": "sine",
     "color": "Cyan",
-    "text": "Echolot is a MIDI/CV delay with feedback, mix, and optional pitch shift on each repeat.\n\n### Cheatsheet\n\nDelay with feedback and optional pitch intervals. I/O picks MIDI/CV routing; Ping-Pong alternates MIDI Out A/B (MIDI→MIDI and CV→MIDI). Mute = ring-out (block new input; queue plays out). Long Panic clears the trail — Third interval edits never panic that hold. MIDI In always flashes white for diagnosis when muted.\n\n**Faders**\n\n- **Main** — Delay (up = shorter / faster)\n\n**Buttons**\n\n- **Long** — Panic (clear queue); skipped if Third used this hold\n\n**LEDs**\n\n- White flash on MIDI/gate in (~20% when muted)\n- Ping-Pong: Top = Out A · Bottom = Out B\n\n**Params**\n\n- Routing: Single / Ping-Pong",
+    "text": "Echolot is a MIDI/CV delay with feedback, mix, and optional pitch shift on each repeat.\n\n### Cheatsheet\n\nDelay with feedback and optional pitch intervals. I/O picks MIDI/CV routing; Ping-Pong alternates MIDI Out A/B (MIDI\u2192MIDI and CV\u2192MIDI). Mute = ring-out (block new input; queue plays out). Long Panic clears the trail \u2014 Third interval edits never panic that hold. MIDI In always flashes white for diagnosis when muted.\n\n**Faders**\n\n- **Main** \u2014 Delay (up = shorter / faster)\n\n**Buttons**\n\n- **Long** \u2014 Panic (clear queue); skipped if Third used this hold\n\n**LEDs**\n\n- White flash on MIDI/gate in (~20% when muted)\n- Ping-Pong: Top = Out A \u00b7 Bottom = Out B\n\n**Params**\n\n- Routing: Single / Ping-Pong",
     "channels": [
       {
         "jackTitle": "CV",

@@ -1,5 +1,15 @@
 [
   {
+    "appId": 100,
+    "module": "heat_pump",
+    "author": "kosmar"
+  },
+  {
+    "appId": 101,
+    "module": "grooves",
+    "author": "kosmar"
+  },
+  {
     "appId": 104,
     "module": "echolot",
     "author": "kosmar"
