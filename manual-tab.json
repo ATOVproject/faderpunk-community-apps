@@ -101,7 +101,7 @@
     "description": "Staccato melody bursts in device key — always newly generated, always harmonic",
     "icon": "note",
     "color": "Rose",
-    "text": "Volata fires short, staccato melody bursts in the device key. Each burst is generated on the fly with functional harmony — weighted I, vi, ii, V plus IV and iii — and never repeats the same contour twice.\n\n**Ch0 short** mutes both channels and dims the LEDs. **Ch1 short** triggers one burst immediately and cuts any burst in progress. With the clock running, notes land on the sixteenth grid; when stopped, sixteenths run at ~125 ms (120 BPM fallback).\n\nAuto-fire happens on bar downbeat (`tick % 96 == 0`) when unmuted and the gap (in sixteenth slots) has elapsed. Gap 0 means the next bar.\n\n**Note** mode walks a monophonic chord-tone line with passing and neighbor tones. **Chord** arpeggiates the triad. **Voicings** picks close, 1st inversion, 2nd inversion, or drop-2 spread per burst.\n\nCV In on Ch0 (Length / Gap / Gate) and Pitch CV Out on Ch1 follow Range and V/Oct. Follow device tonic and Follow device scale tie into the global quantizer; long-press Ch0 cycles the local Scale set when scale isn’t followed.\n\nClock drain is isolate-safe (`clock_drain` / `glob_ticks` only — no `clock_ticker`).",
+    "text": "Volata fires short, staccato melody bursts in the device key. Each burst is generated on the fly with functional harmony — weighted I, vi, ii, V plus IV and iii — and never repeats the same contour twice.\n\nRhythm is mixed: 16ths, 8ths, dotted 8ths and quarters, with rests as first-class events (offbeats rest more often). Length is still a 16th-slot budget; the generator packs duration cells into that budget.\n\n**Gate %** is relative to each sounding note’s duration, not to a fixed 16th slot — 50% on a quarter is two 16ths of gate, 50% on a 16th is half a slot. Rests ignore gate. Pitch CV drops with note-off.\n\n**Ch0 short** mutes both channels and dims the LEDs. **Ch1 short** triggers one burst immediately and cuts any burst in progress. With the clock running, events land on the sixteenth grid; when stopped, sixteenths run at ~125 ms (120 BPM fallback).\n\nAuto-fire happens on bar downbeat (`tick % 96 == 0`) when unmuted and the gap (in sixteenth slots) has elapsed. Gap 0 means the next bar.\n\n**Note** mode walks a monophonic chord-tone line with passing and neighbor tones. **Chord** arpeggiates the triad. **Voicings** picks close, 1st inversion, 2nd inversion, or drop-2 spread per burst.\n\nCV In on Ch0 (Length / Gap / Gate) and Pitch CV Out on Ch1 follow Range and V/Oct. Follow device tonic and Follow device scale tie into the global quantizer; long-press Ch0 cycles the local Scale set when scale isn’t followed.\n\nClock drain is isolate-safe (`clock_drain` / `glob_ticks` only — no `clock_ticker`).",
     "channels": [
       {
         "jackTitle": "CV In",
@@ -111,7 +111,7 @@
         "faderPlusShiftTitle": "Gap",
         "faderPlusShiftDescription": "Sixteenth slots between auto-fired bursts (0–96; 0 = next bar).",
         "faderPlusFnTitle": "Gate %",
-        "faderPlusFnDescription": "Relative gate length per note as % of a sixteenth slot.",
+        "faderPlusFnDescription": "Gate as % of that note’s duration (16th / 8th / dotted 8th / quarter). Rests ignore gate.",
         "fnTitle": "Mute / Scale",
         "fnDescription": "Short: mute. Long: cycle Scale set.",
         "fnPlusShiftTitle": "Reverse scale",

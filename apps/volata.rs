@@ -27,6 +27,7 @@ const SIXTEENTH: u64 = 6;
 const BAR: u64 = 96;
 const FALLBACK_MS: u64 = 125;
 const MAX_BURST: usize = 32;
+const REST: u8 = 255;
 
 const CV_DEST_LENGTH: usize = 0;
 const CV_DEST_GAP: usize = 1;
@@ -283,6 +284,52 @@ fn fader_to_gate_pct(v: u16) -> u32 {
     ((v as u32 * 99 / 4095) + 1).clamp(1, 100)
 }
 
+fn pick_dur(remain: usize, die: &Die) -> u8 {
+    if remain <= 1 {
+        return 1;
+    }
+    let roll = die.roll();
+    if remain >= 4 && roll < 700 {
+        4
+    } else if remain >= 3 && roll < 1200 {
+        3
+    } else if remain >= 2 && roll < 2700 {
+        2
+    } else {
+        1
+    }
+}
+
+fn pack_rhythm(
+    slots: usize,
+    die: &Die,
+    durs: &mut [u8; MAX_BURST],
+    rest: &mut [bool; MAX_BURST],
+) -> usize {
+    let slots = slots.clamp(1, MAX_BURST);
+    let mut filled = 0usize;
+    let mut n = 0usize;
+    while filled < slots && n < MAX_BURST {
+        let remain = slots - filled;
+        let dur = pick_dur(remain, die);
+        let offbeat = filled % 2 == 1;
+        rest[n] = if n == 0 {
+            die.roll() < 500
+        } else if offbeat {
+            die.roll() < 2100
+        } else {
+            die.roll() < 900
+        };
+        durs[n] = dur;
+        filled += dur as usize;
+        n += 1;
+    }
+    if !(0..n).any(|i| !rest[i]) {
+        rest[0] = false;
+    }
+    n
+}
+
 fn fader_to_velocity(v: u16) -> u16 {
     v.max(1)
 }
@@ -535,7 +582,7 @@ fn build_note_pool(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn generate_burst(
+fn fill_pitches(
     len: usize,
     voicing: u8,
     key: Key,
@@ -546,7 +593,7 @@ fn generate_burst(
     root_degree: u8,
     die: &Die,
     out: &mut [u8; MAX_BURST],
-) -> usize {
+) {
     let pcs = scale_pcs(key);
     let tonic_pc = tonic as u8;
     let n = pcs.len().max(1);
@@ -641,7 +688,50 @@ fn generate_burst(
             }
         }
     }
-    len
+}
+
+#[allow(clippy::too_many_arguments)]
+fn generate_burst(
+    len: usize,
+    voicing: u8,
+    key: Key,
+    tonic: Note,
+    base: MidiNote,
+    center_fader: u16,
+    range_fader: u16,
+    root_degree: u8,
+    die: &Die,
+    out: &mut [u8; MAX_BURST],
+    durs: &mut [u8; MAX_BURST],
+) -> usize {
+    let mut rest = [false; MAX_BURST];
+    let n_ev = pack_rhythm(len, die, durs, &mut rest);
+    let n_sound = rest.iter().take(n_ev).filter(|r| !**r).count();
+    let mut pitches = [60u8; MAX_BURST];
+    if n_sound > 0 {
+        fill_pitches(
+            n_sound,
+            voicing,
+            key,
+            tonic,
+            base,
+            center_fader,
+            range_fader,
+            root_degree,
+            die,
+            &mut pitches,
+        );
+    }
+    let mut p = 0usize;
+    for i in 0..n_ev {
+        if rest[i] {
+            out[i] = REST;
+        } else {
+            out[i] = pitches[p];
+            p += 1;
+        }
+    }
+    n_ev
 }
 
 fn note_to_pitch(note: u8) -> Pitch {
@@ -689,6 +779,7 @@ async fn prepare_burst(
     base_note: MidiNote,
     length_slots: u8,
     out: &mut [u8; MAX_BURST],
+    durs: &mut [u8; MAX_BURST],
 ) -> u8 {
     let (device_key, device_tonic) = quantizer.get_scale().await;
     let key = if follow_scale {
@@ -719,6 +810,7 @@ async fn prepare_burst(
         root,
         die,
         out,
+        durs,
     ) as u8
 }
 
@@ -862,8 +954,11 @@ pub async fn run(
 
     let fut_engine = async {
         let mut burst_notes = [60u8; MAX_BURST];
+        let mut burst_durs = [1u8; MAX_BURST];
         let mut burst_len: u8 = 0;
         let mut burst_step: u8 = 0;
+        let mut burst_remain: u8 = 0;
+        let mut burst_slots_done: u8 = 0;
         let mut burst_active = false;
         let mut slots_since_burst: u16 = u16::MAX;
         let mut last_sixteenth_tick: u64 = u64::MAX;
@@ -945,9 +1040,12 @@ pub async fn run(
                     base_note,
                     length_slots,
                     &mut burst_notes,
+                    &mut burst_durs,
                 )
                 .await;
                 burst_step = 0;
+                burst_remain = 0;
+                burst_slots_done = 0;
                 burst_active = true;
                 if !running {
                     free_ms_acc = FALLBACK_MS;
@@ -971,28 +1069,44 @@ pub async fn run(
                     free_ms_acc = 0;
                 }
 
-                if burst_active && burst_step < burst_len {
+                if burst_active && burst_remain == 0 && burst_step < burst_len {
+                    let dur = burst_durs[burst_step as usize].max(1);
                     let raw = burst_notes[burst_step as usize];
-                    pending_note.set(raw);
-                    pending_vel.set(velocity);
-                    pending_cv_counts.set(pitch_as_counts(note_to_pitch(raw), range, vpo));
-                    note_on_pending.set(true);
-                    glob_gate_on.set(true);
-                    glob_button_duck.set(BUTTON_DUCK_MS);
-                    glob_pitch_led.set(((raw as u32 * 4095) / 127) as u16);
-                    let denom = burst_len.max(1) as u32;
-                    glob_burst_led.set(((burst_step as u32 * 4095) / denom) as u16);
-
-                    if running {
-                        gate_off_tick = tick + (SIXTEENTH * gate_pct as u64 / 100).max(1);
-                    } else {
-                        free_gate_remain = (FALLBACK_MS * gate_pct as u64 / 100).max(1);
-                    }
-                    gate_open = true;
+                    burst_remain = dur;
                     burst_step += 1;
+                    if raw == REST {
+                        if gate_open {
+                            pending_note_off.set(true);
+                            gate_open = false;
+                            glob_gate_on.set(false);
+                        }
+                    } else {
+                        pending_note.set(raw);
+                        pending_vel.set(velocity);
+                        pending_cv_counts.set(pitch_as_counts(note_to_pitch(raw), range, vpo));
+                        note_on_pending.set(true);
+                        glob_gate_on.set(true);
+                        glob_button_duck.set(BUTTON_DUCK_MS);
+                        glob_pitch_led.set(((raw as u32 * 4095) / 127) as u16);
+                        let held = dur as u64;
+                        if running {
+                            gate_off_tick =
+                                tick + (held * SIXTEENTH * gate_pct as u64 / 100).max(1);
+                        } else {
+                            free_gate_remain = (held * FALLBACK_MS * gate_pct as u64 / 100).max(1);
+                        }
+                        gate_open = true;
+                    }
                 }
 
-                if burst_active && burst_step >= burst_len {
+                if burst_active && burst_remain > 0 {
+                    burst_remain -= 1;
+                    burst_slots_done = burst_slots_done.saturating_add(1);
+                    let denom = length_slots.max(1) as u32;
+                    glob_burst_led.set(((burst_slots_done as u32 * 4095) / denom) as u16);
+                }
+
+                if burst_active && burst_remain == 0 && burst_step >= burst_len {
                     burst_active = false;
                     slots_since_burst = 0;
                 } else if !burst_active {
@@ -1038,6 +1152,7 @@ pub async fn run(
                 if let Some(n) = note_on.take() {
                     midi.send_note_off(n).await;
                 }
+                pitch_out.set_value(0);
             }
 
             if note_on_pending.get() {
