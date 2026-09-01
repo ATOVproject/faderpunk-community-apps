@@ -960,5 +960,54 @@
       "Muted",
       "Voice"
     ]
+  },
+  {
+    "appId": 113,
+    "title": "Contura",
+    "description": "Melodic contour over selectable 12-TET scale sets, anchored to the device tonic",
+    "icon": "note",
+    "color": "Orange",
+    "text": "Generates melodic contour phrases over selectable 12-TET pitch-class sets,\nanchored to the device quantizer tonic. Phrase starts and endings pull harder\ntoward the tonic (cadence grammar); mid-phrase follows each set\u2019s ScaleFeel.\nScale feel also drives brief ornaments \u2014 grace neighbours, turns or echoes \u2014\nwhen the division leaves enough MIDI space (disabled on the finest grids).\n\nScale-set names are conventional labels for interval patterns (Western modes\nand other named collections on equal footing). They are not claims about living\nmusical practice or authentic intonation.\n\nNeeds a running clock. Jack = CV Out (pitch, 1V/oct) or CV In (Density /\nInterval / Reset / Phrase + CV Att), set in the Configurator. CV on Phrase\nstretches and shortens the sentence, which moves the contour arch and the\ncadence with it. Gates via MIDI note on/off.\nPhrases mix short, medium, and longer note lengths.\n\n**Follow device tonic** (default on) turns the device Tonic into a live transpose: hold the Scene button and move Fader 5 and Contura moves with Bassment, Chord Vamp, Venn and Arp de L\u00e9vy. The note pool is rebuilt on the change, so the cadence resolves in the new key; it takes effect at the next phrase start. **Follow device scale** (default off) swaps the Scale set for the device Scale.",
+    "channels": [
+      {
+        "jackTitle": "Pitch CV / CV In",
+        "jackDescription": "CV Out: quantized melodic pitch (1V/oct / range). CV In: modulates Density, Interval or Phrase, or Reset (gate) \u2014 Dest + Att in Configurator. Gate is MIDI note on/off.",
+        "faderTitle": "Interval",
+        "faderDescription": "Max scale-degree step \u2014 bottom stepwise, mid already leaps, top wanders 2\u20133 octaves when octave span allows",
+        "faderPlusFnTitle": "Density",
+        "faderPlusFnDescription": "How often notes fire vs rests \u2014 sparse \u2194 continuous, mid already densifies",
+        "faderPlusShiftTitle": "Phrase length",
+        "faderPlusShiftDescription": "How many steps before the contour resets (3\u201328)",
+        "fnTitle": "Mute",
+        "fnDescription": "Short press mutes/unmutes. Long press steps to the next scale set.",
+        "fnPlusShiftTitle": "Octaves / scale",
+        "fnPlusShiftDescription": "Shift+Short = octave span 1\u21924 \u00b7 Shift+Long = previous scale set",
+        "ledTop": "Gate / note-on cue (app color)",
+        "ledTopPlusShift": "Octave-span color blink after Shift+Short",
+        "ledBottom": "Pitch height within the current span"
+      }
+    ],
+    "params": [
+      "MIDI Channel",
+      "Base Note",
+      "Color",
+      "MIDI Out",
+      "Range",
+      "VoltPerOct",
+      "Follow device tonic",
+      "Follow device scale",
+      "Scale set",
+      "Division",
+      "Jack",
+      "CV Att"
+    ],
+    "storage": [
+      "Interval",
+      "Phrase length",
+      "Density",
+      "Scale set",
+      "Octaves",
+      "Muted"
+    ]
   }
 ]

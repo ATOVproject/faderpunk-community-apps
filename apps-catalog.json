@@ -83,5 +83,10 @@
     "appId": 112,
     "module": "bassment",
     "author": "kosmar"
+  },
+  {
+    "appId": 113,
+    "module": "contura",
+    "author": "kosmar"
   }
 ]
