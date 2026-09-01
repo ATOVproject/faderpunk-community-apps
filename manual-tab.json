@@ -94,5 +94,53 @@
       "Muted",
       "Drummer"
     ]
+  },
+  {
+    "appId": 104,
+    "title": "Echolot",
+    "description": "MIDI/CV delay with feedback and pitch shift",
+    "icon": "sine",
+    "color": "Cyan",
+    "text": "Echolot is a MIDI/CV delay with feedback, mix, and optional pitch shift on each repeat.\n\n### Cheatsheet\n\nDelay with feedback and optional pitch intervals. I/O picks MIDI/CV routing; Ping-Pong alternates MIDI Out A/B (MIDI\u2192MIDI and CV\u2192MIDI). Mute = ring-out (block new input; queue plays out). Long Panic clears the trail \u2014 Third interval edits never panic that hold. MIDI In always flashes white for diagnosis when muted.\n\n**Faders**\n\n- **Main** \u2014 Delay (up = shorter / faster)\n\n**Buttons**\n\n- **Long** \u2014 Panic (clear queue); skipped if Third used this hold\n\n**LEDs**\n\n- White flash on MIDI/gate in (~20% when muted)\n- Ping-Pong: Top = Out A \u00b7 Bottom = Out B\n\n**Params**\n\n- Routing: Single / Ping-Pong",
+    "channels": [
+      {
+        "jackTitle": "CV",
+        "jackDescription": "Role depends on I/O and Signal params.",
+        "faderTitle": "Delay",
+        "faderDescription": "Delay time or clock division.",
+        "faderPlusFnTitle": "Feedback/mix",
+        "faderPlusFnDescription": "Latch layers.",
+        "faderPlusShiftTitle": "Interval",
+        "faderPlusShiftDescription": "Pitch shift per repeat.",
+        "fnTitle": "Mute",
+        "fnDescription": "Short mute; long clears buffer.",
+        "ledTop": "Input activity",
+        "ledBottom": "Delay level"
+      }
+    ],
+    "params": [
+      "I/O",
+      "Delay mode",
+      "Max delay (ms)",
+      "Interval mode",
+      "Routing",
+      "Signal",
+      "Range",
+      "Color",
+      "MIDI Out",
+      "MIDI Channel",
+      "MIDI CC",
+      "MIDI In",
+      "Feedback",
+      "Mix",
+      "Muted"
+    ],
+    "storage": [
+      "Delay",
+      "Interval",
+      "Feedback saved",
+      "Mix saved",
+      "Muted"
+    ]
   }
 ]

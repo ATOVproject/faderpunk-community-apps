@@ -8,5 +8,10 @@
     "appId": 101,
     "module": "grooves",
     "author": "kosmar"
+  },
+  {
+    "appId": 104,
+    "module": "echolot",
+    "author": "kosmar"
   }
 ]
