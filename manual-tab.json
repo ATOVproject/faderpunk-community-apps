@@ -1,17 +1,264 @@
 [
   {
+    "appId": 100,
+    "title": "Heat Pump",
+    "description": "Clock-synced sidechain ducking: hold + log release",
+    "icon": "ad-env",
+    "color": "Pink",
+    "text": "Heat Pump is a clock-synced sidechain ducking envelope: on each division the CV ducks, holds briefly, then recovers with a logarithmic release. Patch CV Out to a filter or VCA; MIDI CC mirrors when Out is enabled.\n\nMain sets release speed. Shift + fader sets depth. Button + fader picks clock division. Short tap triggers one manual duck. Long press mutes without snapping to idle. Shift + long toggles invert.",
+    "channels": [
+      {
+        "jackTitle": "Jack",
+        "jackDescription": "CV Out = duck envelope; CV In modulates Depth, Release, or triggers Duck.",
+        "faderTitle": "Release",
+        "faderDescription": "Log recovery after hold.",
+        "faderPlusFnTitle": "Division",
+        "faderPlusFnDescription": "Button + fader picks clock division.",
+        "faderPlusShiftTitle": "Depth",
+        "faderPlusShiftDescription": "Duck amount per division.",
+        "fnTitle": "Trigger / mute",
+        "fnDescription": "Short = manual duck; Long = mute.",
+        "ledTop": "Envelope level",
+        "ledBottom": "Division color on Button LED",
+        "fnPlusShiftTitle": "Invert",
+        "fnPlusShiftDescription": "Shift + long toggles invert."
+      }
+    ],
+    "params": [
+      "Color",
+      "Range",
+      "MIDI Channel",
+      "MIDI CC",
+      "MIDI NRPN",
+      "MIDI Out",
+      "Jack",
+      "CV Dest",
+      "CV Att"
+    ],
+    "storage": [
+      "Release",
+      "Depth",
+      "Division",
+      "Invert",
+      "Muted"
+    ]
+  },
+  {
+    "appId": 101,
+    "title": "Grooves",
+    "description": "Multi-genre MIDI drum grooves with feel",
+    "icon": "die",
+    "color": "Orange",
+    "text": "Grooves is a one-channel multi-genre drum helper with up to seven MIDI voices clock-synced in 4/4. **Groove** picks the genre family; **Density** and **Feel** shape fills and character; **Drummer** personas (long press) change ornament style. Swing depth is capped by **Swing max %** (sign = direction). Jack modes include Any/Stacked CV out and CV in for Density, Feel, or Reset. Clock-driven scheduling stays in a dedicated processor; MIDI sends run in a separate task (`pending_*` isolation).",
+    "channels": [
+      {
+        "jackTitle": "Jack output",
+        "jackDescription": "Any: velocity-weighted pulse per hit. Stacked: 1 V kick, 2 V snare, 4 V hats.",
+        "faderTitle": "Density",
+        "faderDescription": "Reveals extra drum hits as ghosts.",
+        "faderPlusFnTitle": "Feel",
+        "faderPlusFnDescription": "Attenuates groove character.",
+        "faderPlusShiftTitle": "Genre",
+        "faderPlusShiftDescription": "Scrub pattern families.",
+        "fnTitle": "Reset / Mute",
+        "fnDescription": "Short: downbeat. Long: mute.",
+        "fnPlusShiftTitle": "Reverse / Jack",
+        "fnPlusShiftDescription": "Short: reverse swing. Long: Any vs Stacked.",
+        "ledTop": "Bar position",
+        "ledTopPlusShift": "Genre color",
+        "ledTopPlusFn": "Feel (red)",
+        "ledBottom": "Hit flash"
+      }
+    ],
+    "params": [
+      "MIDI Note Kick",
+      "MIDI Note Snare",
+      "MIDI Note Hats",
+      "MIDI Note Open Hat",
+      "MIDI Note Low Tom",
+      "MIDI Note High Tom",
+      "MIDI Note Clap",
+      "MIDI Ch",
+      "Ch Map",
+      "Groove",
+      "Swing max %",
+      "GATE %",
+      "MIDI Out",
+      "Jack",
+      "CV Att",
+      "Drummer"
+    ],
+    "storage": [
+      "Feel",
+      "Density",
+      "Muted",
+      "Drummer"
+    ]
+  },
+  {
+    "appId": 104,
+    "title": "Echolot",
+    "description": "MIDI/CV delay with feedback and pitch shift",
+    "icon": "sine",
+    "color": "Cyan",
+    "text": "Echolot is a MIDI/CV delay with feedback, mix, and optional pitch shift on each repeat.\n\n### Cheatsheet\n\nDelay with feedback and optional pitch intervals. I/O picks MIDI/CV routing; Ping-Pong alternates MIDI Out A/B (MIDI\u2192MIDI and CV\u2192MIDI). Mute = ring-out (block new input; queue plays out). Long Panic clears the trail \u2014 Third interval edits never panic that hold. MIDI In always flashes white for diagnosis when muted.\n\n**Faders**\n\n- **Main** \u2014 Delay (up = shorter / faster)\n\n**Buttons**\n\n- **Long** \u2014 Panic (clear queue); skipped if Third used this hold\n\n**LEDs**\n\n- White flash on MIDI/gate in (~20% when muted)\n- Ping-Pong: Top = Out A \u00b7 Bottom = Out B\n\n**Params**\n\n- Routing: Single / Ping-Pong",
+    "channels": [
+      {
+        "jackTitle": "CV",
+        "jackDescription": "Role depends on I/O and Signal params.",
+        "faderTitle": "Delay",
+        "faderDescription": "Delay time or clock division.",
+        "faderPlusFnTitle": "Feedback/mix",
+        "faderPlusFnDescription": "Latch layers.",
+        "faderPlusShiftTitle": "Interval",
+        "faderPlusShiftDescription": "Pitch shift per repeat.",
+        "fnTitle": "Mute",
+        "fnDescription": "Short mute; long clears buffer.",
+        "ledTop": "Input activity",
+        "ledBottom": "Delay level"
+      }
+    ],
+    "params": [
+      "I/O",
+      "Delay mode",
+      "Max delay (ms)",
+      "Interval mode",
+      "Routing",
+      "Signal",
+      "Range",
+      "Color",
+      "MIDI Out",
+      "MIDI Channel",
+      "MIDI CC",
+      "MIDI In",
+      "Feedback",
+      "Mix",
+      "Muted"
+    ],
+    "storage": [
+      "Delay",
+      "Interval",
+      "Feedback saved",
+      "Mix saved",
+      "Muted"
+    ]
+  },
+  {
+    "appId": 110,
+    "title": "Control Issues",
+    "description": "Shape CV and send it as MIDI control",
+    "icon": "attenuate",
+    "color": "Pink",
+    "text": "Control Issues shapes CV (linear, log, exp, S-curve, rectify, fold) and sends MIDI CC or NRPN. Supports slew, quantization, and gate or continuous input modes.\n\n### Cheatsheet\n\n1-channel CV\u2192MIDI sculptor. Defaults are transparent (+100 % att, 0 offset, 0 slew, Linear, full CC window, 100 Hz). Gate mode runs a Schmitt threshold (0.1 V hysteresis) then the same pipeline. Mute sends Output Min once and goes silent; unmute resends the live value. Watch the button LED for level \u2014 fader LEDs stay dark. Uses clock ticker only (no CLOCK_PUBSUB). No clock \u2192 no downbeat blink.\n\n**Faders**\n\n- **Main** \u2014 Attenuverter \u2212100\u2026+100 % (center deadband = 0)\n\n**Buttons**\n\n- **Shift+Hold** \u2014 momentary Bypass (keeps Range / Min-Max / Rate)\n\n**Params / LEDs**\n\n- Button LED only: Main = app color \u00d7 out; Alt = red \u00d7 |offset|; Third = cyan \u00d7 slew (floor so hue stays visible at 0)",
+    "channels": [
+      {
+        "jackTitle": "CV In / Out",
+        "jackDescription": "Bipolar or unipolar CV in; shaped value as MIDI CC/NRPN.",
+        "faderTitle": "Slew / steps",
+        "faderDescription": "Main fader controls shaping parameters per latch layer.",
+        "fnTitle": "Mute / bypass",
+        "fnDescription": "Short tap mute; long bypass.",
+        "ledTop": "Output level",
+        "ledBottom": "Downbeat blink when clocked"
+      }
+    ],
+    "params": [
+      "Input Mode",
+      "Range",
+      "Transfer",
+      "Slew Mode",
+      "Steps",
+      "Output Min",
+      "Output Max",
+      "MIDI Channel",
+      "MIDI CC",
+      "MIDI NRPN",
+      "MIDI Out",
+      "Color"
+    ],
+    "storage": [
+      "Muted",
+      "Bypass"
+    ]
+  },
+  {
+    "appId": 111,
+    "title": "Venn",
+    "description": "Dual Euclidean layers + boolean logic; scale-aware melody via Extent",
+    "icon": "euclid",
+    "color": "Cyan",
+    "text": "Two independent Euclidean masks combined with boolean logic \u2014 the OXI GEN\ndual-layer idea with a scale-aware melodic line. Color sets Layer A; Layer B\nLEDs use a fixed complement. Btn1 shows logic mode, not Color. Different\nlengths per layer enable polyrhythmic XOR/AND patterns Euclid cannot make alone.\n\nMelody: Note A is degree 0 of the device quantizer key. Extent is the arch span\nin scale degrees through Length-A; Interval B is diatonic steps above that line\nfor Ch2 (wire indices 0\u201312 unchanged). Extent 0 = monotone Note A.\n\nNeeds clock. Prob % < 100 adds optional flakiness; 100 is fully deterministic.\nNo pitch CV (use GenSeq for that).\n\nVenn always draws its degrees from the device Scale. **Follow device tonic** (default on) adds the missing half: hold the Scene button and move Fader 5 and both lines transpose, together with Bassment, Contura, Chord Vamp and Arp de L\u00e9vy. The pitch class comes from the device, the octave stays with MIDI Note A, and the change lands at the start of the next A-cycle rather than mid-pattern.\n\n### Cheatsheet\n\n**Faders**\n\n- **Main** \u2014 F0 pulses A \u00b7 F1 pulses B (density; absolute pulse count, Bjorklund redistributes)\n\n**Buttons**\n\n- **Shift+Btn2** \u2014 Toggle post-logic invert (shadow); white\u2194none fade like Heat Pump",
+    "channels": [
+      {
+        "jackTitle": "Logic out",
+        "jackDescription": "Gate + scale-aware melodic MIDI (Note A + degree arch) for the primary boolean result",
+        "faderTitle": "Pulses A",
+        "faderDescription": "Number of pulses in Euclidean layer A (density)",
+        "faderPlusFnTitle": "Length A",
+        "faderPlusFnDescription": "Cycle length for layer A and melody phase (2\u201332)",
+        "faderPlusShiftTitle": "Extent",
+        "faderPlusShiftDescription": "Scale-degree span above Note A (0\u201324 degrees, device key)",
+        "fnTitle": "Third / Logic",
+        "fnDescription": "Hold for length.",
+        "ledTop": "Layer A hits / extent meter / length hue (btn\u2192complement)",
+        "ledBottom": "Logic outs / length hue",
+        "fnPlusShiftTitle": "Logic",
+        "fnPlusShiftDescription": "Shift + tap cycles OR\u2192AND\u2192XOR\u2192Accnt."
+      },
+      {
+        "jackTitle": "Coupled out",
+        "jackDescription": "Secondary gate + same melodic line + diatonic Interval",
+        "faderTitle": "Pulses B",
+        "faderDescription": "Number of pulses in Euclidean layer B (density)",
+        "faderPlusFnTitle": "Length B",
+        "faderPlusFnDescription": "Cycle length for layer B (2\u201332)",
+        "faderPlusShiftTitle": "Interval",
+        "faderPlusShiftDescription": "Diatonic steps above the melodic line for Ch2 (0\u201312)",
+        "fnTitle": "Mute / Invert",
+        "fnDescription": "Tap mute both.",
+        "ledTop": "Layer B complement hits / interval meter / length hue",
+        "ledBottom": "Coupled with logic meters / length hue",
+        "fnPlusShiftTitle": "Invert",
+        "fnPlusShiftDescription": "Shift + tap toggles post-logic invert."
+      }
+    ],
+    "params": [
+      "MIDI Channel",
+      "MIDI Note A",
+      "Interval B",
+      "MIDI Out",
+      "Division",
+      "GATE %",
+      "Prob %",
+      "Humanize",
+      "Color",
+      "Follow device tonic"
+    ],
+    "storage": [
+      "Pulses A",
+      "Pulses B",
+      "Extent",
+      "Interval",
+      "Length A",
+      "Length B",
+      "Logic",
+      "Invert",
+      "Muted"
+    ]
+  },
+  {
     "appId": 114,
     "title": "Manifold",
     "description": "One CV in, three shaped outs with comparator modes",
     "icon": "attenuate",
     "color": "Violet",
-    "text": "One CV in, three shaped outs. Each out is independently CV, Gate or Trigger: CV gets attenuverter / offset / slew, Gate and Trigger get threshold / hysteresis / pulse length. A long press on channels 1–3 cycles that out through CV → Gate → Trigger right on the device, and the change is stored as a parameter, so the configurator stays in sync. Shift + long press on an out cycles its output range; the button flashes once for ±5 V or twice for 0–10 V to confirm the new setting. Channel 0 freezes the conditioned input on a short tap; channels B/C/D mute on a short tap.\n\nWith nothing patched into the input, channel 0 turns into a morphing LFO and drives B/C/D on its own once the jack has been still for about 1.2 s — movement on the jack switches back to CV in. Same wave engine as Super LFO, with speed, morph and skew on the three channel 0 fader layers (Main = speed, Alt = morph, Third = skew) and Shift + short press for clock sync. *LFO Speed* moves the whole rate range down to Slow or Slowest.\n\nAll four waves — the conditioned input on channel 0 plus the three outs B, C and D — mirror to MIDI. Channel 0 and any out in CV mode always send CC. On Gate or Trigger outs, *Mode Map* can switch a lane to Note instead: one bit per out (B in bit 0, C in bit 1, D in bit 2); when set, that lane sends Note On/Off on edges and the pitch comes from that lane’s *CC Map* slot (7-bit note number). *Mode Map* 0 keeps every lane on CC (legacy). By default they share the base *MIDI Channel* and take *MIDI CC* + 0…3. *Ch Map* and *CC Map* break that up: *Ch Map* packs one nibble per wave (wave 0 in bits 0–3, wave 1 in bits 4–7, …), value + 1 = MIDI channel 1…16; *CC Map* packs 7 bits per wave (wave 0 in bits 0–6, wave 1 in bits 7–13, …) holding the CC number directly (or the note number when *Mode Map* selects Note for that lane). A map of 0 means “all waves follow the base”, which is the shipped default and bit-for-bit the old behaviour. Example: channels 1, 5, 9 and 13 → nibbles 0, 4, 8, 12 → 0 + 4·16 + 8·256 + 12·4096 = 51 264; CCs 20, 21, 40, 41 → 20 + 21·128 + 40·16384 + 41·2097152 = 86 641 300. A CC Map field is seven bits wide, so it reaches CC 0–127 only; in NRPN mode the base CC still spans the full 14-bit range, a mapped one does not.\n\nLEDs use five equidistant hues running from blue through violet and red to orange, one per operating mode. Channel 0 is blue while CV in feeds the outs and one step warmer once the internal LFO takes over; the outs take the remaining three steps by mode — CV, then Gate, then Trigger in orange — so a mode swap is visible the moment it lands. All four channels dim with signal amplitude.",
+    "text": "One CV in, three shaped outs. Each out is independently CV, Gate or Trigger: CV gets attenuverter / offset / slew, Gate and Trigger get threshold / hysteresis / pulse length. A long press on channels 1\u20133 cycles that out through CV \u2192 Gate \u2192 Trigger right on the device, and the change is stored as a parameter, so the configurator stays in sync. Shift + long press on an out cycles its output range; the button flashes once for \u00b15 V or twice for 0\u201310 V to confirm the new setting. Channel 0 freezes the conditioned input on a short tap; channels B/C/D mute on a short tap.\n\nWith nothing patched into the input, channel 0 turns into a morphing LFO and drives B/C/D on its own once the jack has been still for about 1.2 s \u2014 movement on the jack switches back to CV in. Same wave engine as Super LFO, with speed, morph and skew on the three channel 0 fader layers (Main = speed, Alt = morph, Third = skew) and Shift + short press for clock sync. *LFO Speed* moves the whole rate range down to Slow or Slowest.\n\nAll four waves \u2014 the conditioned input on channel 0 plus the three outs B, C and D \u2014 mirror to MIDI. Channel 0 and any out in CV mode always send CC. On Gate or Trigger outs, *Mode Map* can switch a lane to Note instead: one bit per out (B in bit 0, C in bit 1, D in bit 2); when set, that lane sends Note On/Off on edges and the pitch comes from that lane\u2019s *CC Map* slot (7-bit note number). *Mode Map* 0 keeps every lane on CC (legacy). By default they share the base *MIDI Channel* and take *MIDI CC* + 0\u20263. *Ch Map* and *CC Map* break that up: *Ch Map* packs one nibble per wave (wave 0 in bits 0\u20133, wave 1 in bits 4\u20137, \u2026), value + 1 = MIDI channel 1\u202616; *CC Map* packs 7 bits per wave (wave 0 in bits 0\u20136, wave 1 in bits 7\u201313, \u2026) holding the CC number directly (or the note number when *Mode Map* selects Note for that lane). A map of 0 means \u201call waves follow the base\u201d, which is the shipped default and bit-for-bit the old behaviour. Example: channels 1, 5, 9 and 13 \u2192 nibbles 0, 4, 8, 12 \u2192 0 + 4\u00b716 + 8\u00b7256 + 12\u00b74096 = 51 264; CCs 20, 21, 40, 41 \u2192 20 + 21\u00b7128 + 40\u00b716384 + 41\u00b72097152 = 86 641 300. A CC Map field is seven bits wide, so it reaches CC 0\u2013127 only; in NRPN mode the base CC still spans the full 14-bit range, a mapped one does not.\n\nLEDs use five equidistant hues running from blue through violet and red to orange, one per operating mode. Channel 0 is blue while CV in feeds the outs and one step warmer once the internal LFO takes over; the outs take the remaining three steps by mode \u2014 CV, then Gate, then Trigger in orange \u2014 so a mode swap is visible the moment it lands. All four channels dim with signal amplitude.",
     "channels": [
       {
         "jackTitle": "CV In",
-        "jackDescription": "CV input. Set In Range to 0–10 V for unipolar sources or ±5 V for bipolar sources. With nothing patched, the internal LFO takes over as the source.",
+        "jackDescription": "CV input. Set In Range to 0\u201310 V for unipolar sources or \u00b15 V for bipolar sources. With nothing patched, the internal LFO takes over as the source.",
         "faderTitle": "Input Trim / LFO Speed",
-        "faderDescription": "CV: attenuverter on the input signal — centre is zero, left inverts, right passes through. Internal LFO: rate, or the clock division when sync is on.",
+        "faderDescription": "CV: attenuverter on the input signal \u2014 centre is zero, left inverts, right passes through. Internal LFO: rate, or the clock division when sync is on.",
         "faderPlusFnTitle": "Input Slew / Skew",
         "faderPlusFnDescription": "CV: smooths changes on the conditioned input. Internal LFO: skews the wave towards rising or falling.",
         "faderPlusShiftTitle": "Input Offset / Morph",
@@ -33,11 +280,11 @@
         "faderPlusShiftTitle": "Offset / Hysteresis",
         "faderPlusShiftDescription": "CV: output offset. Gate/Trigger: hysteresis below the threshold.",
         "fnTitle": "Mute / Out Mode",
-        "fnDescription": "Short tap without Shift mutes the output. A long press cycles this out through CV → Gate → Trigger; the mode is stored as a parameter, so the configurator follows. Scrubbing the fader while the button is held cancels the tap.",
+        "fnDescription": "Short tap without Shift mutes the output. A long press cycles this out through CV \u2192 Gate \u2192 Trigger; the mode is stored as a parameter, so the configurator follows. Scrubbing the fader while the button is held cancels the tap.",
         "fnPlusShiftTitle": "Out Range",
-        "fnPlusShiftDescription": "Shift + long press cycles the output range (±5 V ↔ 0–10 V). The button flashes once for ±5 V and twice for 0–10 V. The range is stored as a parameter, so the configurator follows.",
-        "ledTop": "Mode hue × amplitude (CV out / Gate–Trigger input or flash)",
-        "ledBottom": "Mode hue × amplitude (CV out / Gate–Trigger input or flash)"
+        "fnPlusShiftDescription": "Shift + long press cycles the output range (\u00b15 V \u2194 0\u201310 V). The button flashes once for \u00b15 V and twice for 0\u201310 V. The range is stored as a parameter, so the configurator follows.",
+        "ledTop": "Mode hue \u00d7 amplitude (CV out / Gate\u2013Trigger input or flash)",
+        "ledBottom": "Mode hue \u00d7 amplitude (CV out / Gate\u2013Trigger input or flash)"
       },
       {
         "jackTitle": "Output C",
@@ -49,11 +296,11 @@
         "faderPlusShiftTitle": "Offset / Hysteresis",
         "faderPlusShiftDescription": "CV: output offset. Gate/Trigger: hysteresis below the threshold.",
         "fnTitle": "Mute / Out Mode",
-        "fnDescription": "Short tap without Shift mutes the output. A long press cycles this out through CV → Gate → Trigger; the mode is stored as a parameter, so the configurator follows. Scrubbing the fader while the button is held cancels the tap.",
+        "fnDescription": "Short tap without Shift mutes the output. A long press cycles this out through CV \u2192 Gate \u2192 Trigger; the mode is stored as a parameter, so the configurator follows. Scrubbing the fader while the button is held cancels the tap.",
         "fnPlusShiftTitle": "Out Range",
-        "fnPlusShiftDescription": "Shift + long press cycles the output range (±5 V ↔ 0–10 V). The button flashes once for ±5 V and twice for 0–10 V. The range is stored as a parameter, so the configurator follows.",
-        "ledTop": "Mode hue × amplitude (CV out / Gate–Trigger input or flash)",
-        "ledBottom": "Mode hue × amplitude (CV out / Gate–Trigger input or flash)"
+        "fnPlusShiftDescription": "Shift + long press cycles the output range (\u00b15 V \u2194 0\u201310 V). The button flashes once for \u00b15 V and twice for 0\u201310 V. The range is stored as a parameter, so the configurator follows.",
+        "ledTop": "Mode hue \u00d7 amplitude (CV out / Gate\u2013Trigger input or flash)",
+        "ledBottom": "Mode hue \u00d7 amplitude (CV out / Gate\u2013Trigger input or flash)"
       },
       {
         "jackTitle": "Output D",
@@ -65,11 +312,11 @@
         "faderPlusShiftTitle": "Offset / Hysteresis",
         "faderPlusShiftDescription": "CV: output offset. Gate/Trigger: hysteresis below the threshold.",
         "fnTitle": "Mute / Out Mode",
-        "fnDescription": "Short tap without Shift mutes the output. A long press cycles this out through CV → Gate → Trigger; the mode is stored as a parameter, so the configurator follows. Scrubbing the fader while the button is held cancels the tap.",
+        "fnDescription": "Short tap without Shift mutes the output. A long press cycles this out through CV \u2192 Gate \u2192 Trigger; the mode is stored as a parameter, so the configurator follows. Scrubbing the fader while the button is held cancels the tap.",
         "fnPlusShiftTitle": "Out Range",
-        "fnPlusShiftDescription": "Shift + long press cycles the output range (±5 V ↔ 0–10 V). The button flashes once for ±5 V and twice for 0–10 V. The range is stored as a parameter, so the configurator follows.",
-        "ledTop": "Mode hue × amplitude (CV out / Gate–Trigger input or flash)",
-        "ledBottom": "Mode hue × amplitude (CV out / Gate–Trigger input or flash)"
+        "fnPlusShiftDescription": "Shift + long press cycles the output range (\u00b15 V \u2194 0\u201310 V). The button flashes once for \u00b15 V and twice for 0\u201310 V. The range is stored as a parameter, so the configurator follows.",
+        "ledTop": "Mode hue \u00d7 amplitude (CV out / Gate\u2013Trigger input or flash)",
+        "ledBottom": "Mode hue \u00d7 amplitude (CV out / Gate\u2013Trigger input or flash)"
       }
     ],
     "params": [
