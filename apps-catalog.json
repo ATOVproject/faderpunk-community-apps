@@ -10,6 +10,41 @@
     "author": "kosmar"
   },
   {
+    "appId": 104,
+    "module": "echolot",
+    "author": "kosmar"
+  },
+  {
+    "appId": 110,
+    "module": "control_issues",
+    "author": "kosmar"
+  },
+  {
+    "appId": 111,
+    "module": "venn",
+    "author": "kosmar"
+  },
+  {
+    "appId": 114,
+    "module": "manifold",
+    "author": "kosmar"
+  },
+  {
+    "appId": 115,
+    "module": "ripppple",
+    "author": "kosmar"
+  },
+  {
+    "appId": 116,
+    "module": "dit_dah",
+    "author": "kosmar"
+  },
+  {
+    "appId": 117,
+    "module": "maniac_bounce",
+    "author": "kosmar"
+  },
+  {
     "appId": 103,
     "module": "super_lfo",
     "author": "kosmar"
