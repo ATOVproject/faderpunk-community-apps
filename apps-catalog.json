@@ -23,5 +23,10 @@
     "appId": 111,
     "module": "venn",
     "author": "kosmar"
+  },
+  {
+    "appId": 114,
+    "module": "manifold",
+    "author": "kosmar"
   }
 ]
