@@ -911,5 +911,54 @@
       "Muted",
       "Armed"
     ]
+  },
+  {
+    "appId": 112,
+    "title": "Bassment",
+    "description": "Multi-genre monophonic basslines with bassist Voice personas",
+    "icon": "note-grid",
+    "color": "Cyan",
+    "text": "Genre MIDI bass on the global clock (9 shared genres with Grooves / Chord Vamp \u2014 tropes live in `genre_palette::GENRE_PROG_8`). Density reveals fill hits and freer scale degrees; Alt scrubs genre on the shared spectrum axis; Third is Feel / Groove (swing, microtiming, velocity contrast, ghost drag, gate character \u2014 depth capped by Groove max %). Notes sustain across empty 16ths until the next hit (legato when the pitch repeats).\n\nPhrases are 8 bars in AA\u202fB\u202fA\u2032 form: the rhythmic motif repeats, harmony walks the tropes, bars 5\u20136 answer (shifted, more approaches), bar 7 ornaments, bar 8 breathes (no ghosts/approaches). At higher Feel the line leaves \u201clock\u201d mode: live Dice mix with the step-hash for approaches, ghosts, octave punches, and accent rake; pickups appear before downbeats, soft cores get dropped for air, ghosts can become dead notes, and approaches may be chromatic or scale-neighbor. Voice \u00d7 genre soft-bias: pocket players stay sparse in Jungle/UKG; busy voices thin in Dub/Techno.\n\n**Shift+Tap** plays a dedicated bass fill that walks toward the *next* bar\u2019s chord (leading tone on the last hit) and resolves on the downbeat \u2014 Voice picks the contour (walk / arp / octave push / pedal); pocket Voices and Dub lean Pedal. At high Density the same gesture becomes a quiet pedal break (held root). **Shift+Hold** escalates into a register-lifted solo (+1 octave, +2 for Jaco/Claypool) with breath gaps and shorter gates; it re-rolls each bar while held and always resolves on the next downbeat. Button LED goes white for the gesture (dim = pedal break).\n\nLong cycles bassist Voice personas forward in historical era order (Mingus \u2192 Jamerson \u2192 Bootsy \u2192 Jaco \u2192 Robbie \u2192 Flabba \u2192 Flea \u2192 Claypool; button flash = voice color). Previous Voice lives in the Configurator; Swing Dir rides the sign of Groove max %. Short mutes. CV Out is pitch (V/Oct); CV In modulates Density / Feel or triggers Reset. **Filter CC** (0 = off; 74 is typical cutoff) tracks the line the same way the velocities do: a genre brightness lerped along the shared spectrum (Dub and Dubstep deep, UK Garage and Jungle cutting), the Voice persona\u2019s bite on top (Jamerson and Robbie stay warm, Flea and Claypool bright), and the hit\u2019s own dynamics so accents open the filter. Fills lift, solos bloom, the pedal break ducks away. MIDI note-ons and filter CC fire outside the clock subscriber (`pending_*` isolate), same pattern as Grooves.\n\n**Follow device tonic** (default on) makes the device Tonic a live transpose: hold the Scene button and move Fader 5, and Bassment moves with Contura, Chord Vamp, Venn and Arp de L\u00e9vy. It takes the pitch class from the device and keeps the octave of Root, so the line stays in its register; the new key lands on the next bar line. **Follow device scale** (default off) does the same for Scale \u2014 left off, the patch keeps its own, because Scale is part of the genre character.\n\n### Cheatsheet\n\n**Jack params**\n\n- One enum \u2014 a CV In destination and CV Out were never live at once\n- Groove max % carries the swing direction in its sign \u2014 negative swings the offbeats early\n\n**Voices / LEDs**\n\n- **Flea** Red \u2014 staccato + aggressive jumps\n- **Claypool** Yellow \u2014 quirky leaps + chromatic nudges",
+    "channels": [
+      {
+        "faderTitle": "Main",
+        "faderDescription": "Density (extra onsets + freer degrees)",
+        "faderPlusShiftTitle": "Alt",
+        "faderPlusShiftDescription": "Genre scrub (shared axis with Grooves / Chord Vamp)",
+        "faderPlusFnTitle": "Third",
+        "faderPlusFnDescription": "Feel / Groove (swing \u00b7 microtiming \u00b7 velocity \u00b7 ghosts \u00b7 gate; capped by Groove max %)",
+        "fnTitle": "Short / Long",
+        "fnDescription": "Short: Mute (notes off); Long: Next Voice (flash = voice color)",
+        "fnPlusShiftTitle": "Shift+Tap / Shift+Hold",
+        "fnPlusShiftDescription": "Shift+Tap: Bass fill into next bar\u2019s chord (pedal break at high Density); white button LED; Shift+Hold: Bass solo (+1\u20132 oct), re-rolls each bar; resolves on the next downbeat",
+        "jackTitle": "Jack",
+        "jackDescription": "Jack: CV Out (pitch V/Oct) \u00b7 CV In Density \u00b7 CV In Feel \u00b7 CV In Reset",
+        "ledTop": "Order = historical era: bebop \u2192 Motown \u2192 P-Funk \u2192 fusion \u2192 dub duo \u2192 alt-funk \u2192 quirk",
+        "ledBottom": "Button: genre hue in play; Long flash = voice color; fill/solo = white (dim = pedal break); hits duck Mid\u2192Low"
+      }
+    ],
+    "params": [
+      "Root",
+      "Scale",
+      "Genre",
+      "Voice",
+      "MIDI Channel",
+      "MIDI Out",
+      "Groove max %",
+      "GATE %",
+      "Jack",
+      "Range",
+      "V/Oct",
+      "CV Att",
+      "Filter CC",
+      "Follow device tonic",
+      "Follow device scale"
+    ],
+    "storage": [
+      "Feel",
+      "Density",
+      "Muted",
+      "Voice"
+    ]
   }
 ]

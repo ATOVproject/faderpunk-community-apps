@@ -78,5 +78,10 @@
     "appId": 109,
     "module": "loop_de_cay",
     "author": "kosmar"
+  },
+  {
+    "appId": 112,
+    "module": "bassment",
+    "author": "kosmar"
   }
 ]
