@@ -58,5 +58,10 @@
     "appId": 105,
     "module": "arp_de_levy",
     "author": "kosmar"
+  },
+  {
+    "appId": 106,
+    "module": "vamp",
+    "author": "kosmar"
   }
 ]
