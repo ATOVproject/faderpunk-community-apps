@@ -53,5 +53,10 @@
     "appId": 103,
     "module": "super_lfo",
     "author": "kosmar"
+  },
+  {
+    "appId": 105,
+    "module": "arp_de_levy",
+    "author": "kosmar"
   }
 ]
