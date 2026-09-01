@@ -1,0 +1,95 @@
+name: Deploy community manual to Pages
+
+# Every merge to main means the community catalog (or its manual-tab.json
+# entries) may have changed -- rebuild the real configurator's Manual tab
+# with every currently merged community app spliced in, and publish it as
+# a standalone GitHub Pages site. Same trigger posture as
+# community-edition.yml: a merge to main (maintainer-controlled, via the
+# PR gate), not an anonymous request. Read-only checkout of this repo's
+# own tree; faderpunk and faderpunk-forge are both public, no token
+# needed for either.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Pages deploys should never run concurrently against the same
+# environment -- queue rather than cancel, so a fast second push doesn't
+# leave the live site mid-deploy.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout faderpunk-community-apps
+        uses: actions/checkout@v4
+        with:
+          path: faderpunk-community-apps
+
+      - name: Checkout faderpunk-forge (public, no token needed)
+        uses: actions/checkout@v4
+        with:
+          repository: ATOVproject/faderpunk-forge
+          path: faderpunk-forge
+
+      # Nightly, not stable: build-manual shells out to ./gen-bindings.sh
+      # internally, which requires nightly -- same reason manual-check
+      # (pr-scope.yml) uses nightly for this exact CLI.
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: nightly
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: latest
+
+      - name: Build the faderpunk-forge CLI
+        working-directory: faderpunk-forge
+        run: cargo build --release -p faderpunk-forge
+
+      - name: Configure Pages
+        id: pages
+        uses: actions/configure-pages@v5
+
+      # base_path comes from configure-pages (the real serving path for a
+      # project site, e.g. /faderpunk-community-apps/) rather than being
+      # hardcoded here, so this keeps working unmodified if the repo is
+      # ever renamed or a custom domain changes the base.
+      - name: Build the manual (every currently merged community app)
+        id: build
+        run: |
+          dist=$(./faderpunk-forge/target/release/faderpunk-forge build-manual \
+            --community-path faderpunk-community-apps \
+            --base-path "${{ steps.pages.outputs.base_path }}/" | tail -n1)
+          echo "dist=$dist" >> "$GITHUB_OUTPUT"
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ${{ steps.build.outputs.dist }}
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
