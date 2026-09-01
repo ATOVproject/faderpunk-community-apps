@@ -901,7 +901,7 @@ fn build_clip_from_ring(
     (n as u8, out_deg, out_on, out_dur)
 }
 
-#[embassy_executor::task(pool_size = 16)]
+#[embassy_executor::task(pool_size = 16/CHANNELS)]
 pub async fn wrapper(app: App<CHANNELS>, exit_signal: &'static Signal<NoopRawMutex, bool>) {
     let param_store = ParamStore::<Params>::new(
         app.app_id,
