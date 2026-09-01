@@ -821,5 +821,50 @@
     "storage": [
       "Muted"
     ]
+  },
+  {
+    "appId": 108,
+    "title": "Harmonica",
+    "description": "Monophonic root in \u2192 chord MIDI out",
+    "icon": "note",
+    "color": "Orange",
+    "text": "One root (last MIDI note or pitch CV) picks the chord root; the fader picks\nchord type (Unison \u00b7 Power \u00b7 Min \u00b7 Maj \u00b7 Sus4 \u00b7 Min7 \u00b7 Dom7 \u00b7 Maj7 \u00b7 Min9 \u00b7\nAdd9); up to four MIDI voices sound (MIDI\u2192CV follows the highest). Alt sets\ninversion (0\u20132) or open top. Not a polyphonic keyboard input.\n\nMute is a short tap \u2014 use Third (button+fader) for velocity so mute and vel\ndon\u2019t collide. Alt+Short cycles harmony octave; Alt+Long walks voicing presets\n(tight/dry \u2192 wide/slow). CV Gate: Sustain, fixed ms, or clock divisions.\nNear-0V CV = rest; unpatched float stays silent until a stable pitch.",
+    "channels": [
+      {
+        "jackTitle": "Root / chord out",
+        "jackDescription": "MIDI or CV root in; up to four MIDI chord voices out (MIDI\u2192CV follows highest)",
+        "faderTitle": "Chord type",
+        "faderDescription": "Unison through Add9 (incl. Maj7 / Min9)",
+        "faderPlusFnTitle": "Velocity",
+        "faderPlusFnDescription": "MIDI velocity for sounding voices",
+        "faderPlusShiftTitle": "Inversion / open",
+        "faderPlusShiftDescription": "Steps 0\u20132 = root / 1st / 2nd inversion; step 3 = open top",
+        "fnTitle": "Mute / octave / preset",
+        "fnDescription": "Short mute; Alt+Short harmony octave; Alt+Long voicing preset",
+        "ledTop": "Layer spectrum / chord activity",
+        "ledBottom": "Spectrum / mute red"
+      }
+    ],
+    "params": [
+      "I/O",
+      "Range",
+      "Color",
+      "MIDI In",
+      "MIDI In CH",
+      "MIDI Out",
+      "MIDI Out CH",
+      "V/Oct",
+      "Bypass quantizer",
+      "CV Gate",
+      "Strum ms"
+    ],
+    "storage": [
+      "Chord",
+      "Spread / inversion",
+      "Velocity",
+      "Harmony octave",
+      "Muted",
+      "Voicing preset"
+    ]
   }
 ]
