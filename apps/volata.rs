@@ -731,7 +731,7 @@ pub async fn wrapper(app: App<CHANNELS>, exit_signal: &'static Signal<NoopRawMut
     storage.load().await;
 
     let app_loop = async {
-        loop {
+        while true {
             select3(
                 run(&app, &param_store, &storage),
                 param_store.param_handler(),
@@ -840,7 +840,7 @@ pub async fn run(
     let _ = (main_saved, alt_saved, third_saved, voicing);
 
     let clock_drain = async {
-        loop {
+        while true {
             match clk.wait_for_event(ClockDivision::_1).await {
                 ClockEvent::Tick(tick) => {
                     glob_ticks.set(tick);
@@ -873,7 +873,7 @@ pub async fn run(
         let mut free_ms_acc: u64 = 0;
         let mut free_gate_remain: u64 = 0;
 
-        loop {
+        while true {
             app.delay_millis(1).await;
 
             if glob_muted.get() || glob_stop.get() || glob_reset.get() {
@@ -1021,7 +1021,7 @@ pub async fn run(
 
     let fut_voice = async {
         let mut note_on: Option<MidiNote> = None;
-        loop {
+        while true {
             app.delay_millis(1).await;
 
             if pending_silence.get() {
@@ -1063,7 +1063,7 @@ pub async fn run(
             app.make_latch(faders.get_value_at(0)),
             app.make_latch(faders.get_value_at(1)),
         ];
-        loop {
+        while true {
             let chan = faders.wait_for_any_change().await;
             let layer = glob_latch_layer.get();
             let target = match (chan, layer) {
@@ -1091,7 +1091,7 @@ pub async fn run(
     };
 
     let button_handler = async {
-        loop {
+        while true {
             let (chan, shift) = buttons.wait_for_any_down().await;
             long_press_fired.set(false);
             fader_moved_during_press.set(false);
@@ -1124,7 +1124,7 @@ pub async fn run(
     };
 
     let long_press_handler = async {
-        loop {
+        while true {
             let (chan, shift) = buttons.wait_for_any_long_press().await;
             long_press_fired.set(true);
             if fader_moved_during_press.get() {
@@ -1153,7 +1153,7 @@ pub async fn run(
     };
 
     let led_handler = async {
-        loop {
+        while true {
             app.delay_millis(8).await;
             let layer = if buttons.is_shift_pressed() && !buttons.is_button_pressed(0) {
                 LatchLayer::Alt
@@ -1239,7 +1239,7 @@ pub async fn run(
     };
 
     let cv_handler = async {
-        loop {
+        while true {
             app.delay_millis(1).await;
             let in_val = attenuate_bipolar(cv_in.get_value(), cv_att);
             glob_cv_val.set(in_val);
@@ -1247,7 +1247,7 @@ pub async fn run(
     };
 
     let scene_handler = async {
-        loop {
+        while true {
             match app.wait_for_scene_event().await {
                 SceneEvent::LoadScene(scene) => {
                     storage.load_from_scene(scene).await;
