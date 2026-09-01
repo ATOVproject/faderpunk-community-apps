@@ -38,5 +38,10 @@
     "appId": 116,
     "module": "dit_dah",
     "author": "kosmar"
+  },
+  {
+    "appId": 117,
+    "module": "maniac_bounce",
+    "author": "kosmar"
   }
 ]
