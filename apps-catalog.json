@@ -43,5 +43,10 @@
     "appId": 117,
     "module": "maniac_bounce",
     "author": "kosmar"
+  },
+  {
+    "appId": 102,
+    "module": "fibonacci_gate",
+    "author": "kosmar"
   }
 ]
