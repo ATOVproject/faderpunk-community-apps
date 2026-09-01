@@ -1,0 +1,129 @@
+name: Publish community edition (all apps)
+
+# Rebuild the "everything included" firmware and republish it as a rolling
+# release whenever the community catalog actually changes, so anyone who
+# wants community apps can just download a UF2 directly, no toolchain
+# needed. Deliberately the *only* automated build here: picking a custom
+# subset still goes through faderpunk-forge locally (which needs the full
+# toolchain); this one always means "every currently merged app."
+#
+# paths: scopes the trigger to real catalog changes (apps/**,
+# apps-catalog.json) -- an earlier version of this workflow fired on
+# *every* push to main regardless of content, which republished (or, in
+# one close call, nearly published) this release from unrelated infra
+# merges. Same fix already applied to pr-scope.yml's trigger.
+#
+# Safe by construction: the trigger is a merge to main (maintainer-
+# controlled, via the PR gate), not an anonymous request from the desktop
+# app or any other public caller. No credential is exposed anywhere --
+# the release publish step uses the workflow's own auto-issued
+# GITHUB_TOKEN, scoped to this repo, same as the PR gate already uses.
+#
+# If a selection no longer fits (RAM/flash ceiling -- a real risk as the
+# catalog grows, see PLAN.md), the build step just fails and the job stops
+# *before* touching the existing release, so the last good build stays
+# live rather than being silently replaced by a broken one.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/**"
+      - "apps-catalog.json"
+  workflow_dispatch:
+
+permissions:
+  contents: write # to publish the release
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout faderpunk-community-apps
+        uses: actions/checkout@v4
+        with:
+          path: faderpunk-community-apps
+
+      - name: Checkout faderpunk-forge (public, no token needed)
+        uses: actions/checkout@v4
+        with:
+          repository: ATOVproject/faderpunk-forge
+          path: faderpunk-forge
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: thumbv8m.main-none-eabihf
+
+      - run: cargo install flip-link
+
+      # picotool has no apt package -- build from source, same recipe (and
+      # commit-keyed cache) faderpunk's own beta.yml already uses for this.
+      - name: Install picotool build dependencies
+        run: sudo apt-get update && sudo apt-get install -y build-essential pkg-config libusb-1.0-0-dev cmake
+
+      - name: Clone pico-sdk and picotool
+        run: |
+          git clone --branch master --depth 1 https://github.com/raspberrypi/pico-sdk.git
+          git clone --branch master --depth 1 https://github.com/raspberrypi/picotool.git
+
+      - name: Get commit hashes for caching
+        id: hashes
+        run: |
+          echo "picotool_hash=$(git -C picotool rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "pico_sdk_hash=$(git -C pico-sdk rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache picotool build
+        id: picotool-cache
+        uses: actions/cache@v4
+        with:
+          path: picotool/build
+          key: ${{ runner.os }}-picotool-${{ steps.hashes.outputs.picotool_hash }}-${{ steps.hashes.outputs.pico_sdk_hash }}
+
+      - name: Initialize pico-sdk submodules
+        if: steps.picotool-cache.outputs.cache-hit != 'true'
+        run: cd pico-sdk && git submodule update --init lib/mbedtls
+
+      - name: Build picotool
+        if: steps.picotool-cache.outputs.cache-hit != 'true'
+        env:
+          PICO_SDK_PATH: ${{ github.workspace }}/pico-sdk
+        run: |
+          cd picotool
+          mkdir -p build && cd build
+          cmake ..
+          make -j"$(nproc)"
+
+      - name: Install picotool onto PATH
+        run: |
+          sudo install -m 755 picotool/build/picotool /usr/local/bin/picotool
+          picotool version
+
+      - name: Build the faderpunk-forge CLI
+        working-directory: faderpunk-forge
+        run: cargo build --release -p faderpunk-forge
+
+      - name: Determine every currently merged community module
+        id: modules
+        run: |
+          modules=$(jq -r '[.[].module] | join(",")' faderpunk-community-apps/apps-catalog.json)
+          echo "modules=$modules" >> "$GITHUB_OUTPUT"
+          echo "Building with community apps: ${modules:-<none yet>}"
+
+      - name: Build the all-apps firmware
+        if: steps.modules.outputs.modules != ''
+        run: |
+          ./faderpunk-forge/target/release/faderpunk-forge build \
+            --apps "${{ steps.modules.outputs.modules }}" \
+            --community-path faderpunk-community-apps \
+            --out community-edition.uf2
+
+      - name: Publish/update the rolling community-edition release
+        if: steps.modules.outputs.modules != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete community-edition --repo "$GITHUB_REPOSITORY" --yes --cleanup-tag || true
+          gh release create community-edition community-edition.uf2 \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "Community Edition (all apps, latest)" \
+            --notes "Auto-built whenever the community app catalog changes — every factory app plus every currently merged community app: ${{ steps.modules.outputs.modules }}. Flash it like any firmware update: hold SHIFT, connect USB, copy the file. Unofficial, no guarantees — see this repo's README."
