@@ -20,9 +20,8 @@ use midly::num::u7;
 use serde::{Deserialize, Serialize};
 
 use crate::app::{
-    App, AppParams, AppStorage, ClockEvent, Led, ManagedStorage, ParamStore, SceneEvent,
+    App, AppParams, AppStorage, ClockEvent, Led, LedMode, ManagedStorage, ParamStore, SceneEvent,
 };
-use crate::tasks::leds::LedMode;
 
 use self::led_fx::hsv_to_rgb;
 use smart_leds::RGB8;

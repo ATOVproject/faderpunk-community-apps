@@ -16,9 +16,11 @@ use libfp::{
 };
 
 use crate::{
-    app::{App, AppParams, AppStorage, ClockEvent, Led, ManagedStorage, ParamStore, SceneEvent},
+    app::{
+        App, AppParams, AppStorage, ClockEvent, Led, LedMode, ManagedStorage, ParamStore,
+        SceneEvent,
+    },
     tasks::global_config::get_global_config,
-    tasks::leds::LedMode,
 };
 
 use self::coltrane_geo::{
