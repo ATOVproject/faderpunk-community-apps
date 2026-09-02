@@ -18,10 +18,10 @@ use midly::num::u7;
 
 use crate::{
     app::{
-        App, AppParams, AppStorage, ClockEvent, Die, Led, ManagedStorage, ParamStore, SceneEvent,
+        App, AppParams, AppStorage, ClockEvent, Die, Led, LedMode, ManagedStorage, ParamStore,
+        SceneEvent,
     },
     tasks::global_config::get_global_config,
-    tasks::leds::LedMode,
 };
 
 pub const CHANNELS: usize = 1;

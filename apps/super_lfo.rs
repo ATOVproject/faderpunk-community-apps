@@ -19,9 +19,9 @@ use libfp::{
     Range, Value, Waveform, APP_MAX_PARAMS,
 };
 
-use crate::{
-    app::{App, AppStorage, ClockEvent, Die, Led, LedMode, ManagedStorage, SceneEvent},
-    storage::{AppParams, ParamStore},
+use crate::app::{
+    App, AppParams, AppStorage, ClockEvent, Die, Led, LedMode, ManagedStorage, ParamStore,
+    SceneEvent,
 };
 
 pub const CHANNELS: usize = 2;

@@ -16,12 +16,9 @@ use libfp::{
     MidiOut, Param, Range, Value, APP_MAX_PARAMS,
 };
 
-use crate::{
-    app::{
-        App, AppParams, AppStorage, ClockEvent, GateJack, Led, Leds, ManagedStorage, MidiOutput,
-        OutJack, SceneEvent,
-    },
-    tasks::leds::LedMode,
+use crate::app::{
+    App, AppParams, AppStorage, ClockEvent, GateJack, Led, LedMode, Leds, ManagedStorage,
+    MidiOutput, OutJack, SceneEvent,
 };
 
 use self::morph::{morph_sample, MorphChaos};
