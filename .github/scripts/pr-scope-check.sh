@@ -23,6 +23,7 @@
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 FIXTURE="${1:?usage: pr-scope-check.sh <fixture.json>}"
 SUMMARY="${GITHUB_STEP_SUMMARY:-/dev/null}"
 
@@ -97,8 +98,26 @@ if [ -n "$module" ]; then
     check_hard '\bpanic!\s*\(' "uses \`panic!()\` — the firmware halts the whole device on panic, not just this app"
     check_hard '\bunreachable!\s*\(' "uses \`unreachable!()\` — same reason as panic!()"
     check_hard '\btodo!\s*\(' "uses \`todo!()\` — same reason as panic!()"
-    check_hard 'crate::storage::' "imports crate::storage:: directly — must go through crate::app::{...} instead"
-    check_hard '\bMAX_CHANNEL\b|\bMaxCmd\b|\bMaxSender\b|crate::tasks::max' "reaches MAX11300 directly — must go through crate::app::{...} (make_in_jack/make_out_jack/etc.) instead"
+    check_hard '\bMAX_CHANNEL\b|\bMaxCmd\b|\bMaxSender\b' "reaches MAX11300 symbols directly — must go through crate::app::{...} (make_in_jack/make_out_jack/etc.) instead"
+
+    # General API-boundary check: every crate::-rooted path — in `use`
+    # statements (including nested brace-lists like
+    # `use crate::{ app::{...}, storage::{...} }`, where the offending
+    # segment isn't textually adjacent to `crate::`) and in fully-qualified
+    # inline references (`crate::tasks::foo::bar()`) — must start with
+    # `crate::app`. Supersedes the old crate::storage::/crate::tasks::max
+    # line-regexes, which a brace-nested import could slip past; see
+    # crate-boundary-check.py's docstring for why a real (if small) parser
+    # is needed here instead of another regex.
+    added_file=$(mktemp)
+    printf '%s\n' "$added" > "$added_file"
+    boundary_violations=$(python3 "$SCRIPT_DIR/crate-boundary-check.py" "$added_file")
+    rm -f "$added_file"
+    if [ -n "$boundary_violations" ]; then
+      while IFS= read -r v; do
+        hard_fail "imports \`$v\` directly — must go through crate::app::{...} instead"
+      done <<<"$boundary_violations"
+    fi
 
     # Busy-loop heuristic: known limitation, documented rather than hidden —
     # flags any `loop {` when the added lines contain no `.await` anywhere,
