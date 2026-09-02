@@ -15,6 +15,7 @@ cases=(
   "clean:pass"
   "scope-violation:fail"
   "api-bypass:fail"
+  "api-bypass-braced:fail"
   "panic:fail"
   "id-collision:fail"
   "unwrap-unjustified:pass"
