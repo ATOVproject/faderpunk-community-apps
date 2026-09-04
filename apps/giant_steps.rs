@@ -15,12 +15,8 @@ use libfp::{
     VoltPerOct, APP_MAX_PARAMS,
 };
 
-use crate::{
-    app::{
-        App, AppParams, AppStorage, ClockEvent, Led, LedMode, ManagedStorage, ParamStore,
-        SceneEvent,
-    },
-    tasks::global_config::get_global_config,
+use crate::app::{
+    App, AppParams, AppStorage, ClockEvent, Led, LedMode, ManagedStorage, ParamStore, SceneEvent,
 };
 
 use self::coltrane_geo::{
@@ -543,7 +539,7 @@ pub async fn run(
                     hold_boundaries -= 1;
                 } else {
                     // Feel shares its timing budget with the device-global swing.
-                    let gs = get_global_config().clock.swing_amount;
+                    let gs = app.global_swing();
                     // Parity comes off the clock grid, not the app's start.
                     let delay =
                         feel_swing_ticks(glob_feel.get(), div as u32, (boundary / div) as u32, gs)

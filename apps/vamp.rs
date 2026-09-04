@@ -6,11 +6,6 @@ use embassy_sync::{blocking_mutex::raw::NoopRawMutex, signal::Signal};
 use heapless::Vec;
 use serde::{Deserialize, Serialize};
 
-use portable_atomic::{AtomicU64, Ordering};
-
-use crate::app::ClockEvent;
-use crate::tasks::clock::CLOCK_PUBSUB;
-
 use libfp::{
     ext::FromValue,
     latch::LatchLayer,
@@ -26,24 +21,6 @@ use crate::app::{
 use self::genre_palette::{genre_fader_center, GENRE_NAMES, GENRE_PROG_8, NUM_GENRES};
 use self::groove::{swing_bias, swing_delay_ticks};
 use self::led_fx::{genre_pair, lerp_u8, spectrum_color};
-
-
-static VAMP_TICK: AtomicU64 = AtomicU64::new(0);
-
-fn vamp_ticks() -> u64 {
-    VAMP_TICK.load(Ordering::Relaxed)
-}
-
-async fn clock_tick_drain() {
-    let mut sub = CLOCK_PUBSUB.subscriber().unwrap();
-    loop {
-        match sub.next_message_pure().await {
-            ClockEvent::Tick(t) => VAMP_TICK.store(t, Ordering::Relaxed),
-            ClockEvent::Start | ClockEvent::Reset => VAMP_TICK.store(0, Ordering::Relaxed),
-            ClockEvent::Stop => {}
-        }
-    }
-}
 
 pub const CHANNELS: usize = 1;
 pub const PARAMS: usize = 16;
@@ -998,8 +975,8 @@ pub async fn run(
     let fader = app.use_faders();
     let buttons = app.use_buttons();
     let leds = app.use_leds();
-    // Absolute tick — drained in `clock_tick_drain` (never await MIDI in that task).
-    let ticks = vamp_ticks;
+    // Absolute tick, synchronous.
+    let ticks = || app.current_tick().unwrap_or(0);
     let die = app.use_die();
     let midi = app.use_midi_output(midi_out_cfg, midi_chan, false);
     let out_jack = if jack_param == JACK_OUT {
@@ -2112,20 +2089,17 @@ pub async fn run(
     };
 
     join(
+        long_press,
         join(
-            long_press,
-            join(
-                clock_watch,
-                join5(
-                    engine,
-                    button_handler,
-                    fader_handler,
-                    led_handler,
-                    scene_handler,
-                ),
+            clock_watch,
+            join5(
+                engine,
+                button_handler,
+                fader_handler,
+                led_handler,
+                scene_handler,
             ),
         ),
-        clock_tick_drain(),
     )
     .await;
 }

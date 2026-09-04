@@ -29,7 +29,6 @@ use self::groove::{
     device_swing_permille, device_swing_reverses, feel_curve, feel_lerp_i32, feel_lerp_u16,
     swing_bias, swing_delay_ticks, FLAT_VEL, SIXTEENTH,
 };
-use crate::tasks::global_config::get_global_config;
 use self::led_fx::{genre_nearest, genre_pair, lerp_i32, lerp_u8, spectrum_color};
 
 pub const CHANNELS: usize = 1;
@@ -1831,7 +1830,7 @@ pub async fn run(
                     // window with the device clock. Cap the genre swing by what
                     // the clock already spends and follow its direction.
                     // swing_delay_ticks tops out at 5 of 6 ticks → 833 per-mille.
-                    let gs = get_global_config().clock.swing_amount;
+                    let gs = app.global_swing();
                     let remaining =
                         833u32.saturating_sub(device_swing_permille(SIXTEENTH, gs));
                     let pct_cap = ((remaining * 100) / 833) as i32;
