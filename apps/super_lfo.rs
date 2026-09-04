@@ -974,7 +974,7 @@ pub async fn run(
                     });
                     if clocked {
                         // Already stopped when engaging sync → hold immediately.
-                        if !crate::state::is_clock_running().await {
+                        if !app.is_clock_running() {
                             glob_clock_held.set(true);
                         }
                         let color = morph_color(storage.query(|s| s.morph));

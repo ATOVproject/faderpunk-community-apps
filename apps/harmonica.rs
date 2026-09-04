@@ -10,11 +10,10 @@
 //! until ADC motion then a stable pitch.
 
 use embassy_futures::{
-    join::{join, join4},
+    join::join4,
     select::{select, select3, Either},
 };
 use embassy_sync::{blocking_mutex::raw::NoopRawMutex, signal::Signal};
-use portable_atomic::{AtomicU64, Ordering};
 use heapless::Vec;
 use midly::{num::u7, MidiMessage};
 use serde::{Deserialize, Serialize};
@@ -27,9 +26,6 @@ use libfp::{
     AppIcon, Brightness, Color, Config, MidiChannel, MidiIn, MidiNote, MidiOut, Note, Param, Range,
     Value, VoltPerOct, APP_MAX_PARAMS,
 };
-
-use crate::app::ClockEvent;
-use crate::tasks::clock::CLOCK_PUBSUB;
 
 use crate::app::{
     App, AppParams, AppStorage, Global, Led, ManagedStorage, MidiOutput, OutJack, ParamStore,
@@ -99,24 +95,6 @@ use self::led_spectrum::{paint_fader_meters, spectrum_color};
 
 pub const CHANNELS: usize = 1;
 pub const PARAMS: usize = 11;
-
-static HARMONICA_TICK: AtomicU64 = AtomicU64::new(0);
-
-fn harmonica_ticks() -> u64 {
-    HARMONICA_TICK.load(Ordering::Relaxed)
-}
-
-async fn clock_tick_drain() {
-    let mut sub = CLOCK_PUBSUB.subscriber().unwrap();
-    loop {
-        match sub.next_message_pure().await {
-            ClockEvent::Tick(t) => HARMONICA_TICK.store(t, Ordering::Relaxed),
-            ClockEvent::Start | ClockEvent::Reset => HARMONICA_TICK.store(0, Ordering::Relaxed),
-            ClockEvent::Stop => {}
-        }
-    }
-}
-
 
 const LED_BRIGHTNESS: Brightness = Brightness::Mid;
 /// Mid→Low button duck on each harmony trigger — same length as Heat Pump / Grooves.
@@ -730,7 +708,7 @@ pub async fn run(
     let mut midi_in = app.use_midi_input(midi_in_cfg, midi_in_ch);
     let midi = app.use_midi_output(midi_out_cfg, midi_out_ch, false);
     let quantizer = app.use_quantizer(range, vpo, bypass);
-    // Absolute tick for clock-gated CV — drained in `clock_tick_drain`.
+    // Absolute tick for clock-gated CV.
     let gate_ms = gate_time_ms(gate_mode);
     let gate_ticks = gate_clock_ticks(gate_mode);
 
@@ -1099,7 +1077,7 @@ pub async fn run(
                         if let Some(ms) = gate_ms {
                             cv_gate_left = ms;
                         } else if let Some(len) = gate_ticks {
-                            cv_gate_deadline = Some((harmonica_ticks(), len));
+                            cv_gate_deadline = Some((app.current_tick().unwrap_or(0), len));
                         }
                     } else if matches!(cv_voice, CvVoice::Playing { .. }) {
                         let mut gate_done = false;
@@ -1109,7 +1087,7 @@ pub async fn run(
                             gate_done = cv_gate_left == 0;
                         }
                     } else if let Some((start, len)) = cv_gate_deadline {
-                            if harmonica_ticks().wrapping_sub(start) >= len {
+                            if app.current_tick().unwrap_or(0).wrapping_sub(start) >= len {
                                 gate_done = true;
                                 cv_gate_deadline = None;
                             }
@@ -1348,9 +1326,5 @@ pub async fn run(
         }
     };
 
-    join(
-        join4(engine, button_handler, long_press_handler, scene_handler),
-        clock_tick_drain(),
-    )
-    .await;
+    join4(engine, button_handler, long_press_handler, scene_handler).await;
 }
