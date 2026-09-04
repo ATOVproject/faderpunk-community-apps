@@ -16,12 +16,9 @@ use libfp::{
 };
 use midly::num::u7;
 
-use crate::{
-    app::{
-        App, AppParams, AppStorage, ClockEvent, Die, Led, LedMode, ManagedStorage, ParamStore,
-        SceneEvent,
-    },
-    tasks::global_config::get_global_config,
+use crate::app::{
+    App, AppParams, AppStorage, ClockEvent, Die, Led, LedMode, ManagedStorage, ParamStore,
+    Quantizer, SceneEvent,
 };
 
 pub const CHANNELS: usize = 1;
@@ -436,7 +433,8 @@ fn degree_to_note(degree: i16, tonic: u8, pcs: &[u8]) -> u8 {
     semi.clamp(0, 127) as u8
 }
 
-fn mutate_pool(
+async fn mutate_pool(
+    quantizer: &Quantizer,
     pool: &mut [u8; POOL_CAP],
     phrase_len: usize,
     lo: u8,
@@ -448,7 +446,7 @@ fn mutate_pool(
     if phrase_len == 0 {
         return;
     }
-    let key = get_global_config().quantizer.key;
+    let (key, _) = quantizer.get_scale().await;
     let pcs = scale_pcs(key);
     let tonic = tonic_midi % 12;
     let i = (die.roll() as usize) % phrase_len;
@@ -467,7 +465,8 @@ fn mutate_pool(
     pool[i] = degree_to_note(next_deg, tonic, &pcs).clamp(lo, hi);
 }
 
-fn reroll_pool(
+async fn reroll_pool(
+    quantizer: &Quantizer,
     pool: &mut [u8; POOL_CAP],
     phrase_len: usize,
     lo: u8,
@@ -475,7 +474,7 @@ fn reroll_pool(
     die: &Die,
     tonic_midi: u8,
 ) {
-    let key = get_global_config().quantizer.key;
+    let (key, _) = quantizer.get_scale().await;
     let pcs = scale_pcs(key);
     let tonic = tonic_midi % 12;
     let base_deg = note_to_degree(tonic_midi.clamp(lo, hi), tonic, &pcs);
@@ -743,7 +742,7 @@ pub async fn run(
         };
         let mut cur_base = base_midi(base_note);
         if follow_tonic {
-            let want = self::follow_key::root(true, base_note);
+            let want = self::follow_key::root(&quantizer, true, base_note).await;
             if want != cur_base {
                 shift_pool(&mut pool, i16::from(want) - i16::from(cur_base));
                 cur_base = want;
@@ -800,7 +799,7 @@ pub async fn run(
 
                     if glob_reroll.get() {
                         glob_reroll.set(false);
-                        reroll_pool(&mut pool, phrase_len, lo, hi, &die, lo);
+                        reroll_pool(&quantizer, &mut pool, phrase_len, lo, hi, &die, lo).await;
                         // Short/CV reroll also picks a new expression depth.
                         let expression = die.roll();
                         glob_expression.set(expression);
@@ -854,7 +853,8 @@ pub async fn run(
                             // Number of mutations scales with fader (0 = freeze).
                             while mutation > 0 {
                                 if die.roll() < mutation {
-                                    mutate_pool(&mut pool, phrase_len, lo, hi, alpha, &die, lo);
+                                    mutate_pool(&quantizer, &mut pool, phrase_len, lo, hi, alpha, &die, lo)
+                                        .await;
                                     changed = true;
                                 }
                                 mutation = mutation.saturating_sub(1024);
@@ -896,7 +896,7 @@ pub async fn run(
                         if phrase_len > 0 && step.is_multiple_of(phrase_len) {
                             step = 0;
                             if follow_tonic {
-                                let want = self::follow_key::root(true, base_note);
+                                let want = self::follow_key::root(&quantizer, true, base_note).await;
                                 if want != cur_base {
                                     shift_pool(
                                         &mut pool,
@@ -1275,11 +1275,12 @@ mod follow_key {
     use libfp::MidiNote;
     use midly::num::u7;
 
-    use crate::tasks::global_config::get_global_config;
+    use crate::app::Quantizer;
 
-    pub fn root(follow: bool, local_root: MidiNote) -> u8 {
+    pub async fn root(quantizer: &Quantizer, follow: bool, local_root: MidiNote) -> u8 {
         if follow {
-            retune(local_root, get_global_config().quantizer.tonic as u8)
+            let (_, tonic) = quantizer.get_scale().await;
+            retune(local_root, tonic as u8)
         } else {
             midi_u8(local_root)
         }

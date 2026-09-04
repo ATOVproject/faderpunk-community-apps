@@ -397,6 +397,9 @@ pub async fn run(
     let mut clock = app.use_clock();
     let glob_ticks = app.make_global(0u64);
     let die = app.use_die();
+    // Only used to read the device scale/tonic via `get_scale()` — this app
+    // doesn't quantize its own CV output, so range/vpo/bypass are unused.
+    let quantizer = app.use_quantizer(Range::default(), VoltPerOct::default(), true);
     let midi = app.use_midi_output(midi_out, midi_chan, false);
 
     let out_jack = if jack_param == JACK_OUT {
@@ -515,7 +518,7 @@ pub async fn run(
                 let func = function_from_fader(func_fader);
 
                 if center != prev_center || func != prev_func {
-                    let root_midi = follow_key::root(follow_tonic, root_note);
+                    let root_midi = follow_key::root(&quantizer, follow_tonic, root_note).await;
                     let (quality, root_offset) = if in_transition {
                         (ChordQuality::Dom7, function_root_offset(center, 1, interval_semi))
                     } else {
@@ -687,7 +690,7 @@ pub async fn run(
             let (center, in_transition) = position_to_center_and_approach(pos_fader);
             let func = function_from_fader(func_fader);
 
-            let root_midi = follow_key::root(follow_tonic, root_note);
+            let root_midi = follow_key::root(&quantizer, follow_tonic, root_note).await;
             let (quality, root_offset) = if in_transition {
                 (ChordQuality::Dom7, function_root_offset(center, 1, interval_semi))
             } else {
@@ -983,13 +986,14 @@ mod follow_key {
     use libfp::{Key, MidiNote};
     use midly::num::u7;
 
-    use crate::tasks::global_config::get_global_config;
+    use crate::app::Quantizer;
 
     /// The device Scale, normalized for note generators: a Key of `Off` means
     /// "don't quantize" device-wide, but a generator has to pick notes from
     /// *something*, so it reads as chromatic here.
-    pub fn device_key() -> Key {
-        match get_global_config().quantizer.key {
+    pub async fn device_key(quantizer: &Quantizer) -> Key {
+        let (key, _) = quantizer.get_scale().await;
+        match key {
             Key::Off => Key::Chromatic,
             k => k,
         }
@@ -997,9 +1001,10 @@ mod follow_key {
 
     /// Pitch class (0–11) the app should anchor on: the device Tonic when
     /// following, otherwise the pitch class of the app's own root.
-    pub fn tonic_pc(follow: bool, local_root: MidiNote) -> u8 {
+    pub async fn tonic_pc(quantizer: &Quantizer, follow: bool, local_root: MidiNote) -> u8 {
         if follow {
-            get_global_config().quantizer.tonic as u8
+            let (_, tonic) = quantizer.get_scale().await;
+            tonic as u8
         } else {
             midi_u8(local_root) % 12
         }
@@ -1008,21 +1013,23 @@ mod follow_key {
     /// The app's root, retuned onto the device Tonic when following. This is all an
     /// app needs whose scale already comes from the global quantizer — there the
     /// scale follows anyway and only the root runs loose.
-    pub fn root(follow: bool, local_root: MidiNote) -> u8 {
+    pub async fn root(quantizer: &Quantizer, follow: bool, local_root: MidiNote) -> u8 {
         if follow {
-            retune(local_root, get_global_config().quantizer.tonic as u8)
+            let (_, tonic) = quantizer.get_scale().await;
+            retune(local_root, tonic as u8)
         } else {
             midi_u8(local_root)
         }
     }
 
     /// Root *and* Scale at once, for apps whose scale is a plain [`Key`] — one
-    /// `GlobalConfig` copy instead of two.
+    /// quantizer lock instead of two.
     ///
     /// The returned root keeps the octave of `local_root` and only takes on the
     /// new pitch class, so following the Tonic transposes within the register the
     /// patch was written in rather than jumping the app an octave.
-    pub fn root_and_key(
+    pub async fn root_and_key(
+        quantizer: &Quantizer,
         follow_tonic: bool,
         follow_scale: bool,
         local_root: MidiNote,
@@ -1031,14 +1038,14 @@ mod follow_key {
         if !follow_tonic && !follow_scale {
             return (midi_u8(local_root), local_key);
         }
-        let c = get_global_config();
+        let (device_key, device_tonic) = quantizer.get_scale().await;
         let pc = if follow_tonic {
-            c.quantizer.tonic as u8
+            device_tonic as u8
         } else {
             midi_u8(local_root) % 12
         };
         let key = if follow_scale {
-            match c.quantizer.key {
+            match device_key {
                 Key::Off => Key::Chromatic,
                 k => k,
             }
