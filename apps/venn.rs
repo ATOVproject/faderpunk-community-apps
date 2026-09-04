@@ -14,7 +14,8 @@ use embassy_sync::{blocking_mutex::raw::NoopRawMutex, signal::Signal};
 use heapless::Vec;
 use libfp::{
     ext::FromValue, latch::LatchLayer, utils::euclidean_at, AppIcon, Brightness, ClockDivision,
-    Color, Config, Key, MidiChannel, MidiNote, MidiOut, Param, Value, APP_MAX_PARAMS,
+    Color, Config, Key, MidiChannel, MidiNote, MidiOut, Param, Range, Value, VoltPerOct,
+    APP_MAX_PARAMS,
 };
 use midly::num::u7;
 use serde::{Deserialize, Serialize};
@@ -618,19 +619,26 @@ pub async fn run(
         }
     };
 
+    // Only used to read the device scale/tonic via `get_scale()` — this app
+    // doesn't quantize its own CV output, so range/vpo/bypass are unused.
+    let quantizer = app.use_quantizer(Range::default(), VoltPerOct::default(), true);
+
     let clock_processor = async {
         let mut note_on_a = false;
         let mut note_on_b = false;
         let mut sounding_a = note_a;
         let mut sounding_b = note_a + MidiNote::from(1);
-        // Reading the device tonality copies the whole GlobalConfig, which is
-        // far too heavy for the step path. Refresh at the start of each
+        // Reading the device tonality locks the shared quantizer state, which
+        // is far too heavy for the step path. Refresh at the start of each
         // A-cycle — a pattern boundary is also where a key change belongs
-        // musically. Asking for scale and tonic together costs one copy, not
+        // musically. Asking for scale and tonic together costs one lock, not
         // two; the local key is irrelevant because Venn always follows the
         // device scale.
-        let resolve = || self::follow_key::root_and_key(follow_tonic, true, note_a, Key::Chromatic);
-        let (root0, key0) = resolve();
+        let resolve = || async {
+            self::follow_key::root_and_key(&quantizer, follow_tonic, true, note_a, Key::Chromatic)
+                .await
+        };
+        let (root0, key0) = resolve().await;
         let mut cached_root = MidiNote::from(root0);
         let mut cached_pcs = scale_pcs(key0);
         let mut last_cycle = u32::MAX;
@@ -721,7 +729,7 @@ pub async fn run(
                     let cycle = step / u32::from(len_a);
                     if cycle != last_cycle {
                         last_cycle = cycle;
-                        let (r, k) = resolve();
+                        let (r, k) = resolve().await;
                         cached_root = MidiNote::from(r);
                         cached_pcs = scale_pcs(k);
                     }
@@ -1153,9 +1161,10 @@ mod follow_key {
     use libfp::{Key, MidiNote};
     use midly::num::u7;
 
-    use crate::tasks::global_config::get_global_config;
+    use crate::app::Quantizer;
 
-    pub fn root_and_key(
+    pub async fn root_and_key(
+        quantizer: &Quantizer,
         follow_tonic: bool,
         follow_scale: bool,
         local_root: MidiNote,
@@ -1164,14 +1173,14 @@ mod follow_key {
         if !follow_tonic && !follow_scale {
             return (midi_u8(local_root), local_key);
         }
-        let c = get_global_config();
+        let (device_key, device_tonic) = quantizer.get_scale().await;
         let pc = if follow_tonic {
-            c.quantizer.tonic as u8
+            device_tonic as u8
         } else {
             midi_u8(local_root) % 12
         };
         let key = if follow_scale {
-            match c.quantizer.key {
+            match device_key {
                 Key::Off => Key::Chromatic,
                 k => k,
             }
