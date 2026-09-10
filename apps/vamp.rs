@@ -400,21 +400,60 @@ impl Default for Storage {
 
 impl AppStorage for Storage {}
 
+/// Longest genre rhythm phrase, in steps.
+const RHYTHM_MAX: usize = 16;
+
+/// Fixed-size rhythm phrase. Stored inline (no slice reference) so the genre
+/// table contains no pointers and stays position-independent when built as an
+/// installable app.
+#[derive(Clone, Copy)]
+struct Rhythm {
+    steps: [u8; RHYTHM_MAX],
+    len: u8,
+}
+
+impl Rhythm {
+    const fn new(src: &[u8]) -> Self {
+        let mut steps = [0u8; RHYTHM_MAX];
+        let mut i = 0;
+        while i < src.len() {
+            steps[i] = src[i];
+            i += 1;
+        }
+        Self {
+            steps,
+            len: src.len() as u8,
+        }
+    }
+
+    fn as_slice(&self) -> &[u8] {
+        &self.steps[..self.len as usize]
+    }
+}
+
 #[derive(Clone, Copy)]
 struct GenrePreset {
     /// Classic trope loop — used as default / occasional seed (~20%).
-    progression: &'static [u8],
+    progression: [u8; 8],
     /// Markov weights from → to (rows sum arbitrary; sampled by weight).
-    markov: &'static [[u8; NUM_DEGREES]; NUM_DEGREES],
+    markov: [[u8; NUM_DEGREES]; NUM_DEGREES],
     /// Auto vamp rhythm phrase (loops; does not meander — only harmony does).
     /// `1..=n` = chord weight (× Feel); [`REST_CODE`]`|bars` = silence for `bars`
     /// bars (Feel-independent). Play a bar or two, then a long break.
-    rhythm: &'static [u8],
+    rhythm: Rhythm,
 }
 
 impl GenrePreset {
-    fn get(index: usize) -> Self {
-        GENRES[index.min(NUM_GENRES - 1)]
+    fn get(index: usize) -> &'static Self {
+        &GENRES[index.min(NUM_GENRES - 1)]
+    }
+
+    fn progression(&self) -> &[u8] {
+        &self.progression
+    }
+
+    fn rhythm(&self) -> &[u8] {
+        self.rhythm.as_slice()
     }
 }
 
@@ -424,8 +463,8 @@ impl GenrePreset {
 const GENRES: [GenrePreset; NUM_GENRES] = [
     // Dub — i–IV–i–V; half-time 4-chord statement, long space
     GenrePreset {
-        progression: &GENRE_PROG_8[0],
-        markov: &[
+        progression: GENRE_PROG_8[0],
+        markov: [
             [4, 1, 1, 6, 5, 2, 2],
             [3, 2, 1, 2, 3, 2, 1],
             [2, 2, 2, 2, 2, 3, 2],
@@ -434,12 +473,12 @@ const GENRES: [GenrePreset; NUM_GENRES] = [
             [3, 2, 2, 2, 2, 2, 3],
             [4, 1, 1, 2, 3, 2, 2],
         ],
-        rhythm: &[2, 1, 2, 1, REST_CODE | 4, 2, 1, 2, REST_CODE | 3],
+        rhythm: Rhythm::new(&[2, 1, 2, 1, REST_CODE | 4, 2, 1, 2, REST_CODE | 3]),
     },
     // Disco — I–vi–IV–V; busy 2-bar vamp, shorter breaks
     GenrePreset {
-        progression: &GENRE_PROG_8[1],
-        markov: &[
+        progression: GENRE_PROG_8[1],
+        markov: [
             [2, 1, 1, 4, 5, 6, 1],
             [2, 2, 2, 2, 3, 2, 2],
             [2, 2, 2, 3, 2, 3, 2],
@@ -448,12 +487,12 @@ const GENRES: [GenrePreset; NUM_GENRES] = [
             [3, 1, 2, 5, 3, 2, 1],
             [4, 1, 1, 2, 4, 2, 1],
         ],
-        rhythm: &[1, 1, 1, 1, 1, 1, 2, REST_CODE | 2, 1, 1, 1, 1, REST_CODE | 3],
+        rhythm: Rhythm::new(&[1, 1, 1, 1, 1, 1, 2, REST_CODE | 2, 1, 1, 1, 1, REST_CODE | 3]),
     },
     // House — i–VII–VI–VII; pump through the loop, uneven breaks
     GenrePreset {
-        progression: &GENRE_PROG_8[2],
-        markov: &[
+        progression: GENRE_PROG_8[2],
+        markov: [
             [3, 1, 1, 2, 2, 4, 6],
             [2, 2, 2, 2, 2, 3, 2],
             [2, 2, 2, 2, 2, 3, 3],
@@ -462,12 +501,12 @@ const GENRES: [GenrePreset; NUM_GENRES] = [
             [4, 1, 1, 2, 2, 2, 5],
             [5, 1, 1, 2, 2, 4, 2],
         ],
-        rhythm: &[1, 1, 1, 1, 2, REST_CODE | 2, 1, 1, 1, 2, REST_CODE | 4],
+        rhythm: Rhythm::new(&[1, 1, 1, 1, 2, REST_CODE | 2, 1, 1, 1, 2, REST_CODE | 4]),
     },
     // Techno — static/minimal; long holds across the statement, rare deep drop
     GenrePreset {
-        progression: &GENRE_PROG_8[3],
-        markov: &[
+        progression: GENRE_PROG_8[3],
+        markov: [
             [8, 1, 1, 2, 4, 2, 3],
             [4, 2, 1, 1, 2, 1, 1],
             [3, 1, 2, 1, 2, 1, 2],
@@ -476,12 +515,12 @@ const GENRES: [GenrePreset; NUM_GENRES] = [
             [4, 1, 1, 2, 2, 2, 3],
             [5, 1, 1, 1, 3, 2, 2],
         ],
-        rhythm: &[3, 2, 3, REST_CODE | 1, 2, 3, REST_CODE | 5],
+        rhythm: Rhythm::new(&[3, 2, 3, REST_CODE | 1, 2, 3, REST_CODE | 5]),
     },
     // Trip-Hop — i–VII–VI–v; sparse but still a short progression, then void
     GenrePreset {
-        progression: &GENRE_PROG_8[4],
-        markov: &[
+        progression: GENRE_PROG_8[4],
+        markov: [
             [3, 1, 2, 2, 4, 4, 5],
             [2, 2, 2, 2, 2, 3, 2],
             [2, 2, 2, 2, 3, 3, 2],
@@ -490,12 +529,12 @@ const GENRES: [GenrePreset; NUM_GENRES] = [
             [4, 1, 2, 2, 3, 2, 4],
             [5, 1, 1, 2, 3, 4, 2],
         ],
-        rhythm: &[2, 1, 2, REST_CODE | 4, 1, 2, 1, REST_CODE | 5],
+        rhythm: Rhythm::new(&[2, 1, 2, REST_CODE | 4, 1, 2, 1, REST_CODE | 5]),
     },
     // Hip-Hop — i–VI–III–VII; boom-bap phrase then wide open
     GenrePreset {
-        progression: &GENRE_PROG_8[5],
-        markov: &[
+        progression: GENRE_PROG_8[5],
+        markov: [
             [3, 1, 4, 2, 2, 5, 4],
             [2, 2, 2, 2, 2, 3, 2],
             [3, 1, 2, 2, 2, 4, 3],
@@ -504,12 +543,12 @@ const GENRES: [GenrePreset; NUM_GENRES] = [
             [4, 1, 3, 2, 2, 2, 3],
             [5, 1, 2, 2, 2, 3, 2],
         ],
-        rhythm: &[2, 1, 1, 2, REST_CODE | 3, 2, 1, 1, REST_CODE | 5],
+        rhythm: Rhythm::new(&[2, 1, 1, 2, REST_CODE | 3, 2, 1, 1, REST_CODE | 5]),
     },
     // Jungle — i–VII–VI–III; choppy amen energy, short hits then drop
     GenrePreset {
-        progression: &GENRE_PROG_8[6],
-        markov: &[
+        progression: GENRE_PROG_8[6],
+        markov: [
             [3, 1, 5, 2, 2, 4, 5],
             [2, 2, 3, 2, 2, 3, 2],
             [4, 1, 2, 2, 2, 3, 4],
@@ -518,12 +557,12 @@ const GENRES: [GenrePreset; NUM_GENRES] = [
             [4, 1, 3, 2, 2, 2, 4],
             [5, 1, 2, 2, 2, 4, 2],
         ],
-        rhythm: &[1, 1, 1, 2, 1, REST_CODE | 2, 1, 1, 2, 1, REST_CODE | 3],
+        rhythm: Rhythm::new(&[1, 1, 1, 2, 1, REST_CODE | 2, 1, 1, 2, 1, REST_CODE | 3]),
     },
     // UK Garage — i–III–VI–VII; choppy 2-bar then break
     GenrePreset {
-        progression: &GENRE_PROG_8[7],
-        markov: &[
+        progression: GENRE_PROG_8[7],
+        markov: [
             [3, 1, 5, 2, 2, 4, 4],
             [2, 2, 3, 2, 2, 3, 2],
             [3, 2, 2, 2, 2, 4, 3],
@@ -532,12 +571,12 @@ const GENRES: [GenrePreset; NUM_GENRES] = [
             [4, 1, 3, 2, 2, 2, 4],
             [5, 1, 2, 2, 2, 3, 2],
         ],
-        rhythm: &[1, 1, 2, 1, 1, REST_CODE | 2, 2, 1, 1, 1, REST_CODE | 3],
+        rhythm: Rhythm::new(&[1, 1, 2, 1, 1, REST_CODE | 2, 2, 1, 1, 1, REST_CODE | 3]),
     },
     // Dubstep — i–i–VI–VII; half-time progression, wide gaps
     GenrePreset {
-        progression: &GENRE_PROG_8[8],
-        markov: &[
+        progression: GENRE_PROG_8[8],
+        markov: [
             [6, 1, 1, 2, 2, 5, 5],
             [3, 2, 1, 1, 2, 2, 2],
             [3, 1, 2, 1, 2, 2, 2],
@@ -546,7 +585,7 @@ const GENRES: [GenrePreset; NUM_GENRES] = [
             [4, 1, 1, 2, 2, 2, 5],
             [5, 1, 1, 1, 3, 4, 2],
         ],
-        rhythm: &[2, 2, 1, 2, REST_CODE | 3, 2, 1, 2, REST_CODE | 5],
+        rhythm: Rhythm::new(&[2, 2, 1, 2, REST_CODE | 3, 2, 1, 2, REST_CODE | 5]),
     },
 ];
 
@@ -657,7 +696,7 @@ fn build_perform_map(
     deg_out: &mut [u8; PERFORM_CAP],
     oct_out: &mut [u8; PERFORM_CAP],
 ) -> u8 {
-    let degrees = unique_degrees_from_prog(GenrePreset::get(genre).progression);
+    let degrees = unique_degrees_from_prog(GenrePreset::get(genre).progression());
     let mut n = 0usize;
     for oct in 0..PERFORM_OCTAVES {
         for &deg in degrees.iter() {
@@ -718,7 +757,7 @@ fn pick_weighted(weights: &[u8; NUM_DEGREES], die: &Die) -> Option<u8> {
 /// Tiles the short genre trope out to [`NUM_SLOTS`].
 fn load_classic_into(slots: &mut [u8; VAMP_CAP], genre: usize) -> u8 {
     let g = GenrePreset::get(genre);
-    let src = g.progression;
+    let src = g.progression();
     let n = NUM_SLOTS.min(VAMP_CAP);
     if src.is_empty() {
         for s in slots.iter_mut().take(n) {
@@ -759,7 +798,7 @@ fn seed_genre_into(slots: &mut [u8; VAMP_CAP], genre: usize, die: &Die) -> u8 {
         if (i + 1) % 4 == 0 && die.roll() < 1600 {
             deg = 0;
         } else {
-            deg = pick_markov(deg, g.markov, die);
+            deg = pick_markov(deg, &g.markov, die);
         }
     }
     for s in slots.iter_mut().skip(n) {
@@ -1345,7 +1384,8 @@ pub async fn run(
                         let count = glob_slot_count.get().max(1) as usize;
                         let g = glob_last_genre.get().min(NUM_GENRES - 1);
                         let genre = GenrePreset::get(g);
-                        let weight = genre.rhythm[phrase_i % genre.rhythm.len()];
+                        let rhythm = genre.rhythm();
+                        let weight = rhythm[phrase_i % rhythm.len()];
                         let feel = glob_feel.get();
                         let swing = swing_pct(glob_swing.get());
                         let total = segment_ticks(feel, weight);
@@ -1358,7 +1398,7 @@ pub async fn run(
                                     glob_tension.get()
                                 };
                                 if tension > 512 {
-                                    let next = pick_markov(current_degree, genre.markov, &die);
+                                    let next = pick_markov(current_degree, &genre.markov, &die);
                                     if tension < 3000 && die.roll() > tension {
                                         slots_now[harm_i % count]
                                     } else {
