@@ -9,7 +9,7 @@ The repository keeps app source, manual entries, and the catalogue together,
 plus the small build and review tools needed to keep them trustworthy. See
 [CONTRIBUTING.md](CONTRIBUTING.md) for the submission format and rules.
 
-Browse what each community app does before building anything: **[the community manual](https://atovproject.github.io/faderpunk-community-apps/#/manual)** — same look as the official manual, deployed straight from this repo's current catalog on every merge to `main`.
+Browse what each community app does before building anything: **[the community manual](https://atovproject.github.io/faderpunk-community-apps/#/manual)** — same look as the official manual, built from this repo's catalog.
 
 ## Layout
 
@@ -21,17 +21,18 @@ Community app IDs start at 100 (official apps use 1–99) and are permanent once
 
 ## Build installable apps
 
-Clone this repository and Faderpunk next to one another, check out the firmware
-revision that will run on the device, then build every catalogued app:
+Clone this repository and Faderpunk next to one another, then build every
+catalogued app:
 
 ```sh
 make fpapps
 ```
 
 The `.fpapp` files are written to `build/fpapps/`. Each package includes the
-app, its manual, setup notes, and Configurator metadata. It is deliberately
-matched to the checked-out firmware revision; rebuild the packages after
-updating firmware.
+app, its manual, setup notes, and Configurator metadata. A package's
+compatibility with a given firmware build is decided by an ABI contract, not
+by matching revisions — a package keeps working across firmware updates that
+don't break the FPApp ABI, so there's no need to rebuild after every update.
 
 If the repositories are not siblings, provide the Faderpunk checkout path:
 
@@ -47,4 +48,4 @@ the normal app catalogue above and can be added to a layout.
 
 Private for now — not yet open to public PRs, though the mechanical review gate is live: `.github/workflows/pr-scope.yml` runs on every PR (scope, API boundary, panic/unsafe rules, catalog + manual-tab validation, real solo-app compile check against the actual `App<N>` API). The AI first-pass review step isn't wired up yet — advisory only, not a merge gate, per `CONTRIBUTING.md`.
 
-The current catalogue contains Heat Pump, Grooves, and Sift.
+See [`apps-catalog.json`](apps-catalog.json) for the current catalogue.
