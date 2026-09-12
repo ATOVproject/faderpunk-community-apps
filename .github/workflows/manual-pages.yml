@@ -1,5 +1,27 @@
 name: Deploy community manual to Pages
 
+# PAUSED (2026-09-11): auto-deploy on push is disabled. faderpunk-forge's
+# build-manual shells out to the same inject_community_manual logic that
+# pr-scope.yml's manual-check used to run -- it string-matches literal
+# markers in faderpunk's ManualTab.tsx, and ATOVproject/faderpunk#666
+# rewrote that file (renamed the built-in apps array, changed the render
+# call). Confirmed broken: this workflow failed twice against real merges
+# to main today, "ManualTab.tsx: could not find the apps array
+# declaration" -- same error manual-check hit before it was replaced
+# (see faderpunk-community-apps#55). GitHub Pages keeps serving the last
+# successful build on a failed run, so the public manual isn't down, just
+# stale and falling further behind with every merge, silently.
+#
+# faderpunk-forge's manual tooling is being retired here rather than
+# patched -- it exists to splice into a *whole rebuilt copy* of the
+# official Configurator manual, which was the plan before FPApps made
+# that unnecessary. The replacement is a lightweight, community-only
+# manual build that doesn't depend on another repo's internal file
+# structure at all (tracked in the FPApp plan, "Package H"). Re-enable the
+# `push` trigger below once that replacement lands; until then this job
+# still runs on demand (`workflow_dispatch`) if forge's markers happen to
+# get fixed in the meantime, but nothing auto-publishes.
+#
 # Every merge to main means the community catalog (or its manual-tab.json
 # entries) may have changed -- rebuild the real configurator's Manual tab
 # with every currently merged community app spliced in, and publish it as
@@ -10,8 +32,8 @@ name: Deploy community manual to Pages
 # needed for either.
 
 on:
-  push:
-    branches: [main]
+  # push:
+  #   branches: [main]
   workflow_dispatch:
 
 permissions:
