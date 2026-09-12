@@ -156,18 +156,22 @@ enum CvVoice {
 /// Semitone offsets from root (index 0 is always the root).
 /// Fader maps across these; new types are appended so wire indices for the
 /// original seven stay in the same relative order (bucket widths change).
-const CHORD_TEMPLATES: &[&[i8]] = &[
-    &[0],            // Unison
-    &[0, 7],         // Power
-    &[0, 3, 7],      // Minor
-    &[0, 4, 7],      // Major
-    &[0, 5, 7],      // Sus4
-    &[0, 3, 7, 10],  // Min7
-    &[0, 4, 7, 10],  // Dom7
-    &[0, 4, 7, 11],  // Maj7
-    &[0, 3, 7, 10, 14], // Min9 (cap to MAX_VOICES below)
-    &[0, 4, 7, 14],  // Add9
+/// Stored as fixed-size rows (no nested slices) so the table contains no
+/// pointers and stays position-independent when built as an installable app.
+const CHORD_TEMPLATE_MAX: usize = 5;
+const CHORD_TEMPLATES: [[i8; CHORD_TEMPLATE_MAX]; NUM_CHORD_TYPES] = [
+    [0, 0, 0, 0, 0],   // Unison
+    [0, 7, 0, 0, 0],   // Power
+    [0, 3, 7, 0, 0],   // Minor
+    [0, 4, 7, 0, 0],   // Major
+    [0, 5, 7, 0, 0],   // Sus4
+    [0, 3, 7, 10, 0],  // Min7
+    [0, 4, 7, 10, 0],  // Dom7
+    [0, 4, 7, 11, 0],  // Maj7
+    [0, 3, 7, 10, 14], // Min9 (cap to MAX_VOICES below)
+    [0, 4, 7, 14, 0],  // Add9
 ];
+const CHORD_TEMPLATE_LENS: [usize; NUM_CHORD_TYPES] = [1, 2, 3, 3, 3, 4, 4, 4, 5, 4];
 
 pub static CONFIG: Config<PARAMS> = Config::new(
     "Harmonica",
@@ -456,7 +460,8 @@ async fn build_voices(quantizer: &Quantizer, p: VoiceParams) -> Vec<u8, MAX_VOIC
     }
     unique_push(&mut out, p.root);
 
-    let template = CHORD_TEMPLATES[p.chord_type.min(NUM_CHORD_TYPES - 1)];
+    let chord_idx = p.chord_type.min(NUM_CHORD_TYPES - 1);
+    let template = &CHORD_TEMPLATES[chord_idx][..CHORD_TEMPLATE_LENS[chord_idx]];
     let spread_steps = value_to_index(p.spread, SPREAD_STEPS);
     let harm_oct = octave_from_idx(p.octave_idx) as i16 * 12;
 
