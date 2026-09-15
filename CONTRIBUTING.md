@@ -34,6 +34,14 @@ Exactly three things, added in one PR, and nothing else:
 Touching anything else in this repo — including another contributor's
 existing app — gets a submission rejected automatically.
 
+## What an app fix is
+
+A PR that only modifies one or more existing `apps/<name>.rs` files — a bug
+fix, or an API migration across several apps. It must not add, remove or
+rename an app, and must not touch `apps-catalog.json` or `manual-tab.json`;
+those changes go in their own PR. Every rule below still applies to each
+app it touches, and each one gets its own compile check.
+
 ## The rules (enforced mechanically)
 
 - **Only the sanctioned API.** Everything — faders, buttons, LEDs, jacks,
@@ -50,6 +58,10 @@ existing app — gets a submission rejected automatically.
 - **No busy-loops.** Any `loop {}` needs a reachable `.await` inside it —
   Core 1 is cooperatively scheduled, so a loop that never yields starves
   every other app.
+- **Declared parameters need a `ParamStore`.** If `CONFIG` adds any
+  parameters, load them into a `ParamStore` and run its `param_handler()`
+  alongside `run()`, as the existing apps do. Without it the Configurator can't
+  show or change them, and they stay at the defaults compiled into the app.
 - **A free ID in the 100+ range.** Community IDs are permanent once
   assigned, even if the app is later removed or adopted more officially —
   never reused, so saved layouts referencing it never silently break.
