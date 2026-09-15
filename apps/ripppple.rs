@@ -1,6 +1,6 @@
 use embassy_futures::{
     join::{join, join3, join4},
-    select::{select},
+    select::{select, select3, Either3},
 };
 use embassy_sync::{blocking_mutex::raw::NoopRawMutex, signal::Signal};
 use heapless::Vec;
@@ -18,7 +18,7 @@ use libfp::{
 
 use crate::app::{
     App, AppParams, AppStorage, ClockEvent, Led, LedMode, Leds, ManagedStorage, MidiOutput,
-    SceneEvent,
+    ParamStore, SceneEvent,
 };
 
 use self::morph::{morph_sample, MorphChaos};
@@ -334,6 +334,7 @@ pub static CONFIG: Config<PARAMS> = Config::new(
     max: 268_435_455,
 });
 
+#[derive(Clone)]
 pub struct Params {
     color: Color,
     in_range: Range,
@@ -523,26 +524,43 @@ impl AppStorage for Storage {}
 
 #[embassy_executor::task(pool_size = 16/CHANNELS)]
 pub async fn wrapper(app: App<CHANNELS>, exit_signal: &'static Signal<NoopRawMutex, bool>) {
-    let mut params = Params {
-        color: Color::Cyan,
-        in_range: Range::_Neg5_5V,
-        range_b: Range::_Neg5_5V,
-        range_c: Range::_Neg5_5V,
-        range_d: Range::_Neg5_5V,
-        process: [0; 3],
-        lfo_speed_mult: 0,
-        midi_out: MidiOut([false; 3]),
-        midi_channel: MidiChannel::default(),
-        midi_cc: MidiCc::from(32u8.saturating_add(app.start_channel as u8)),
-        ..Default::default()
-    };
+    let param_store = ParamStore::<Params>::new(
+        app.app_id,
+        app.layout_id,
+        Params {
+            color: Color::Cyan,
+            in_range: Range::_Neg5_5V,
+            range_b: Range::_Neg5_5V,
+            range_c: Range::_Neg5_5V,
+            range_d: Range::_Neg5_5V,
+            process: [0; 3],
+            lfo_speed_mult: 0,
+            midi_out: MidiOut([false; 3]),
+            midi_channel: MidiChannel::default(),
+            midi_cc: MidiCc::from(32u8.saturating_add(app.start_channel as u8)),
+            ..Default::default()
+        },
+    );
     let storage = ManagedStorage::<Storage>::new(app.app_id, app.layout_id);
 
+    param_store.load().await;
     storage.load().await;
 
     let app_loop = async {
         loop {
-            select(run(&app, &mut params, &storage), storage.saver_task()).await;
+            // Shift+button Range cycles edit this copy and restart run(), so it
+            // lives outside run(). A configurator edit replaces it with the
+            // stored params.
+            let mut params = param_store.query(Params::clone);
+            while !matches!(
+                select3(
+                    run(&app, &mut params, &storage),
+                    param_store.param_handler(),
+                    storage.saver_task(),
+                )
+                .await,
+                Either3::Second(())
+            ) {}
         }
     };
 
