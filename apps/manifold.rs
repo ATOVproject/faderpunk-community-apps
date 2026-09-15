@@ -1,6 +1,6 @@
 use embassy_futures::{
     join::{join, join3, join4},
-    select::{select},
+    select::{select, select3, Either3},
 };
 use embassy_sync::{blocking_mutex::raw::NoopRawMutex, signal::Signal};
 use heapless::Vec;
@@ -18,7 +18,7 @@ use libfp::{
 
 use crate::app::{
     App, AppParams, AppStorage, ClockEvent, GateJack, Led, LedMode, Leds, ManagedStorage,
-    MidiOutput, OutJack, SceneEvent,
+    MidiOutput, OutJack, ParamStore, SceneEvent,
 };
 
 use self::morph::{morph_sample, MorphChaos};
@@ -307,6 +307,7 @@ pub static CONFIG: Config<PARAMS> = Config::new(
     max: 15,
 });
 
+#[derive(Clone)]
 pub(crate) struct Params {
     pub(crate) color: Color,
     pub(crate) in_range: Range,
@@ -559,21 +560,34 @@ impl AppStorage for Storage {}
 
 #[embassy_executor::task(pool_size = 16/CHANNELS)]
 pub async fn wrapper(app: App<CHANNELS>, exit_signal: &'static Signal<NoopRawMutex, bool>) {
-    let mut params = Params {
-        midi_cc: MidiCc::from(32u8.saturating_add(app.start_channel as u8)),
-        ..Params::default()
-    };
+    let param_store = ParamStore::<Params>::new(
+        app.app_id,
+        app.layout_id,
+        Params {
+            midi_cc: MidiCc::from(32u8.saturating_add(app.start_channel as u8)),
+            ..Params::default()
+        },
+    );
     let storage = ManagedStorage::<Storage>::new(app.app_id, app.layout_id);
 
+    param_store.load().await;
     storage.load().await;
 
     let app_loop = async {
         loop {
-            select(
-                run(&app, &mut params, &storage),
-                storage.saver_task(),
-            )
-            .await;
+            // Shift+button Mode/Range cycles edit this copy and restart run(),
+            // so it lives outside run(). A configurator edit replaces it with
+            // the stored params.
+            let mut params = param_store.query(Params::clone);
+            while !matches!(
+                select3(
+                    run(&app, &mut params, &storage),
+                    param_store.param_handler(),
+                    storage.saver_task(),
+                )
+                .await,
+                Either3::Second(())
+            ) {}
         }
     };
 
