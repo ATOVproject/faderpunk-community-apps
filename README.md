@@ -41,7 +41,7 @@ make fpapps FADERPUNK_DIR=/path/to/faderpunk
 ```
 
 Connect Faderpunk normally, open **Apps**, scroll to **Installed Apps**, and
-install a package in one of the four slots. The installed app then appears in
+install a package in one of the available slots. The installed app then appears in
 the normal app catalogue above and can be added to a layout.
 
 ## Status
