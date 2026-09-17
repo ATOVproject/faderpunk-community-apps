@@ -1,6 +1,6 @@
 use embassy_futures::{
     join::{join, join3, join4},
-    select::{select, select3, Either3},
+    select::{select, select3},
 };
 use embassy_sync::{blocking_mutex::raw::NoopRawMutex, signal::Signal};
 use heapless::Vec;
@@ -575,19 +575,12 @@ pub async fn wrapper(app: App<CHANNELS>, exit_signal: &'static Signal<NoopRawMut
 
     let app_loop = async {
         loop {
-            // Shift+button Mode/Range cycles edit this copy and restart run(),
-            // so it lives outside run(). A configurator edit replaces it with
-            // the stored params.
-            let mut params = param_store.query(Params::clone);
-            while !matches!(
-                select3(
-                    run(&app, &mut params, &storage),
-                    param_store.param_handler(),
-                    storage.saver_task(),
-                )
-                .await,
-                Either3::Second(())
-            ) {}
+            select3(
+                run(&app, &param_store, &storage),
+                param_store.param_handler(),
+                storage.saver_task(),
+            )
+            .await;
         }
     };
 
@@ -613,27 +606,33 @@ async fn make_jack_for_mode(
 
 pub async fn run(
     app: &App<CHANNELS>,
-    params: &mut Params,
+    params: &ParamStore<Params>,
     storage: &ManagedStorage<Storage>,
 ) {
-    let in_range = params.in_range;
-    let mode_b = params.mode_b;
-    let range_b = params.range_b;
-    let mode_c = params.mode_c;
-    let range_c = params.range_c;
-    let mode_d = params.mode_d;
-    let range_d = params.range_d;
-    let nrpn = params.nrpn;
+    // Taken once: nothing in this function body mutates `params` before it is
+    // read below, since every gesture that changes it also restarts `run()`
+    // (see `restart` below) — so a live re-read would never see anything this
+    // snapshot doesn't already have.
+    let snapshot = params.query(Params::clone);
+    let in_range = snapshot.in_range;
+    let mode_b = snapshot.mode_b;
+    let range_b = snapshot.range_b;
+    let mode_c = snapshot.mode_c;
+    let range_c = snapshot.range_c;
+    let mode_d = snapshot.mode_d;
+    let range_d = snapshot.range_d;
+    let nrpn = snapshot.nrpn;
     let modes = [mode_b, mode_c, mode_d];
     let ranges = [range_b, range_c, range_d];
-    let midi_out = params.midi_out;
-    let midi_chans = core::array::from_fn::<MidiChannel, MIDI_WAVES, _>(|w| params.channel_for(w));
-    let midi_ccs = core::array::from_fn::<MidiCc, MIDI_WAVES, _>(|w| params.cc_for(w, nrpn));
+    let midi_out = snapshot.midi_out;
+    let midi_chans =
+        core::array::from_fn::<MidiChannel, MIDI_WAVES, _>(|w| snapshot.channel_for(w));
+    let midi_ccs = core::array::from_fn::<MidiCc, MIDI_WAVES, _>(|w| snapshot.cc_for(w, nrpn));
     let midi_is_note =
-        core::array::from_fn::<bool, MIDI_WAVES, _>(|w| params.midi_is_note(w, &modes));
+        core::array::from_fn::<bool, MIDI_WAVES, _>(|w| snapshot.midi_is_note(w, &modes));
     let note_pitches =
-        core::array::from_fn::<MidiNote, MIDI_WAVES, _>(|w| params.note_for(w));
-    let lfo_speed_mult = 2u32.pow(params.lfo_speed_mult.min(31) as u32);
+        core::array::from_fn::<MidiNote, MIDI_WAVES, _>(|w| snapshot.note_for(w));
+    let lfo_speed_mult = 2u32.pow(snapshot.lfo_speed_mult.min(31) as u32);
 
     // Starts idle so an unpatched Manifold comes up on the internal LFO.
     let initial_lfo_active = true;
@@ -1334,9 +1333,9 @@ pub async fn run(
                 // 1 blink = ±5V, 2 blinks = 0–10V. Hold off paint + wait for
                 // release and flash duration before jack restart.
                 let next = match i {
-                    0 => next_range(params.range_b),
-                    1 => next_range(params.range_c),
-                    _ => next_range(params.range_d),
+                    0 => next_range(snapshot.range_b),
+                    1 => next_range(snapshot.range_c),
+                    _ => next_range(snapshot.range_d),
                 };
                 let times = range_flash_times(next);
                 let hold_ms = range_flash_hold_ms(times);
@@ -1355,10 +1354,14 @@ pub async fn run(
                     app.delay_millis(hold_ms as u64),
                 )
                 .await;
+                // Persists the new range and marks it changed for the
+                // Configurator to pick up (`ParamStore::update` — see its doc
+                // comment for why that's a poll rather than a push). `run()`
+                // restarts right after regardless, to reconfigure the jack.
                 match i {
-                    0 => params.range_b = next,
-                    1 => params.range_c = next,
-                    _ => params.range_d = next,
+                    0 => params.update(|p| p.range_b = next).await,
+                    1 => params.update(|p| p.range_c = next).await,
+                    _ => params.update(|p| p.range_d = next).await,
                 }
                 restart.signal(());
             }
@@ -1410,18 +1413,22 @@ pub async fn run(
                 // Long without Shift → Mode cycle (cancelled if fader moved).
                 1..=3 if !shift && long => {
                     let i = chan - 1;
+                    // Same persist-and-mark-dirty as the range gesture above.
                     let next_mode = match i {
                         0 => {
-                            params.mode_b = params.mode_b.next();
-                            params.mode_b
+                            let next = snapshot.mode_b.next();
+                            params.update(|p| p.mode_b = next).await;
+                            next
                         }
                         1 => {
-                            params.mode_c = params.mode_c.next();
-                            params.mode_c
+                            let next = snapshot.mode_c.next();
+                            params.update(|p| p.mode_c = next).await;
+                            next
                         }
                         _ => {
-                            params.mode_d = params.mode_d.next();
-                            params.mode_d
+                            let next = snapshot.mode_d.next();
+                            params.update(|p| p.mode_d = next).await;
+                            next
                         }
                     };
                     glob_modes.modify(|m| {
