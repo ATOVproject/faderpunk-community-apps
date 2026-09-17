@@ -96,7 +96,7 @@
     ]
   },
   {
-    "appId": 120,
+    "appId": 123,
     "title": "Semmy",
     "description": "CV state-variable filter (LP/HP/BP/Notch)",
     "icon": "attenuate",
