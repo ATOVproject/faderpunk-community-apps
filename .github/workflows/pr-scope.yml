@@ -173,6 +173,21 @@ jobs:
       - name: Validate against manual-tab.schema.json
         run: npx -y ajv-cli@5 validate -s manual-tab.schema.json -d head-manual-tab.json --spec=draft2020 --strict=false
 
+      # apps-catalog.json had a schema (apps-catalog.schema.json) but no CI
+      # step ever ran it, the same gap manual-tab.json had before the step
+      # above closed it — added alongside the catalog's new required
+      # `version` field (see CONTRIBUTING.md and pr-scope-check.sh's
+      # "version bump" scope) so that field is actually enforced, not just
+      # documented in the schema.
+      - name: Fetch the submitted apps-catalog.json at PR head
+        run: |
+          head_sha="${{ github.event.pull_request.head.sha }}"
+          gh api "repos/${{ github.repository }}/contents/apps-catalog.json?ref=$head_sha" \
+            --jq '.content' | base64 -d > head-apps-catalog.json
+
+      - name: Validate against apps-catalog.schema.json
+        run: npx -y ajv-cli@5 validate -s apps-catalog.schema.json -d head-apps-catalog.json --spec=draft2020 --strict=false
+
   # AI first-pass review: not wired up yet. Per the plan (see CONTRIBUTING.md
   # "Review"), this is meant to run once scope-check and build-check both
   # pass, and flag things the mechanical checks can't (API misuse that's

@@ -298,7 +298,8 @@
     {
       "appId": 200,
       "module": "test_clean",
-      "author": "poc-tester"
+      "author": "poc-tester",
+      "version": "0.1.0"
     }
   ],
   "base_manual_tab": [

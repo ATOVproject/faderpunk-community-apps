@@ -42,6 +42,19 @@ soft_flags=()
 hard_fail() { hard_fails+=("$1"); }
 soft_flag() { soft_flags+=("$1"); }
 
+# True (exit 0) if version $1 is strictly greater than $2, comparing
+# major.minor.patch numerically per component. Both must already be
+# validated as N.N.N by the caller — no format checking here.
+semver_gt() {
+  local IFS=.
+  local -a a=($1) b=($2)
+  for i in 0 1 2; do
+    if [ "${a[i]}" -gt "${b[i]}" ]; then return 0; fi
+    if [ "${a[i]}" -lt "${b[i]}" ]; then return 1; fi
+  done
+  return 1
+}
+
 # ---------------------------------------------------------------------------
 # 1. Path-scope check
 # ---------------------------------------------------------------------------
@@ -88,6 +101,14 @@ if [ "$added_count" -eq 0 ] && [ "$modified_count" -gt 0 ]; then
   if [ "$catalog_count" -ne 0 ] || [ "$manual_count" -ne 0 ]; then
     hard_fail "an app fix may only modify existing apps/<name>.rs files — apps-catalog.json and manual-tab.json changes need their own PR"
   fi
+elif [ "$app_count" -eq 0 ] && [ "$catalog_count" -eq 1 ] && [ "$manual_count" -eq 0 ]; then
+  # No apps/*.rs touched at all, only apps-catalog.json — the shape a
+  # version bump takes (see the "version bump" catalog validation below).
+  # Anything else this shape could be (a catalog-only edit that isn't a
+  # clean single-field version bump) gets hard-failed there instead of
+  # here, so the one error message explains exactly what was wrong with
+  # the diff rather than just "wrong scope".
+  scope="version bump"
 else
   scope="submission"
   if [ "$app_count" -ne 1 ]; then
@@ -212,9 +233,11 @@ if [ -n "$module" ]; then
     entry_module=$(echo "$entry" | jq -r '.module // empty')
     entry_author=$(echo "$entry" | jq -r '.author // empty')
     entry_id=$(echo "$entry" | jq -r '.appId // empty')
+    entry_version=$(echo "$entry" | jq -r '.version // empty')
 
     [ "$entry_module" = "$module" ] || hard_fail "apps-catalog.json entry's module ('$entry_module') doesn't match the submitted app ('$module')"
     [ -n "$entry_author" ] || hard_fail "apps-catalog.json entry is missing an author"
+    [[ "$entry_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || hard_fail "apps-catalog.json entry's version ('$entry_version') is not plain major.minor.patch"
 
     if ! [[ "$entry_id" =~ ^[0-9]+$ ]]; then
       hard_fail "apps-catalog.json entry's appId is not a plain integer"
@@ -227,6 +250,52 @@ if [ -n "$module" ]; then
       else
         hard_fail "apps-catalog.json entry's appId ($entry_id) is already taken"
       fi
+    fi
+  fi
+fi
+
+# ---------------------------------------------------------------------------
+# 3b. Catalog validation — version bump scope: exactly one existing entry
+#     changed, only its `version` field, strictly increasing.
+# ---------------------------------------------------------------------------
+
+if [ "$scope" = "version bump" ]; then
+  base_catalog=$(jq -c '.base_catalog' "$FIXTURE")
+  head_catalog=$(jq -c '.head_catalog' "$FIXTURE")
+
+  base_count=$(echo "$base_catalog" | jq 'length')
+  head_count=$(echo "$head_catalog" | jq 'length')
+
+  removed=$(jq -c -n --argjson base "$base_catalog" --argjson head "$head_catalog" \
+    '[$base[] | select(. as $b | ($head | index($b)) == null)]')
+  added=$(jq -c -n --argjson base "$base_catalog" --argjson head "$head_catalog" \
+    '[$head[] | select(. as $h | ($base | index($h)) == null)]')
+  removed_count=$(echo "$removed" | jq 'length')
+  added_count_catalog=$(echo "$added" | jq 'length')
+
+  if [ "$base_count" -ne "$head_count" ]; then
+    hard_fail "apps-catalog.json: a version bump may only change one existing entry, not add or remove entries (had $base_count, now $head_count)"
+  elif [ "$removed_count" -ne 1 ] || [ "$added_count_catalog" -ne 1 ]; then
+    hard_fail "apps-catalog.json: must change exactly one existing entry (found $removed_count changed)"
+  else
+    old_entry=$(echo "$removed" | jq -c '.[0]')
+    new_entry=$(echo "$added" | jq -c '.[0]')
+    old_id=$(echo "$old_entry" | jq -r '.appId')
+    new_id=$(echo "$new_entry" | jq -r '.appId')
+    old_version=$(echo "$old_entry" | jq -r '.version // empty')
+    new_version=$(echo "$new_entry" | jq -r '.version // empty')
+
+    same_except_version=$(jq -n --argjson a "$old_entry" --argjson b "$new_entry" \
+      '(($a | del(.version)) == ($b | del(.version)))')
+
+    if [ "$old_id" != "$new_id" ]; then
+      hard_fail "apps-catalog.json: the changed entry's appId must not change ($old_id -> $new_id)"
+    elif [ "$same_except_version" != "true" ]; then
+      hard_fail "apps-catalog.json: a version bump may only change the 'version' field — module/author/appId must stay identical"
+    elif ! [[ "$new_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+      hard_fail "apps-catalog.json: new version ('$new_version') is not plain major.minor.patch"
+    elif ! semver_gt "$new_version" "$old_version"; then
+      hard_fail "apps-catalog.json: new version ('$new_version') must be strictly greater than the previous version ('$old_version')"
     fi
   fi
 fi
