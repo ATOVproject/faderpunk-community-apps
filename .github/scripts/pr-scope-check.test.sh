@@ -29,6 +29,11 @@ cases=(
   "app-removed:fail"
   "app-renamed:fail"
   "manual-id-mismatch:fail"
+  "version-bump:pass"
+  "version-bump-decrease:fail"
+  "version-bump-other-field:fail"
+  "version-bump-multiple:fail"
+  "version-bump-plus-new-entry:fail"
   "manual-missing-field:fail"
 )
 

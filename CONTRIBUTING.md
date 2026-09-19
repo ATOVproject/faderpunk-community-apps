@@ -29,7 +29,9 @@ Exactly three things, added in one PR, and nothing else:
    code, which matters once a desktop app consumes it directly.
 3. One appended entry in `apps-catalog.json`, matching
    `apps-catalog.schema.json`. Its `appId` must match the `appId` used in
-   your `manual-tab.json` entry — that's how the two are linked.
+   your `manual-tab.json` entry — that's how the two are linked. Its
+   `version` starts at whatever you're releasing as — `0.1.0` for a first
+   submission is the norm.
 
 Touching anything else in this repo — including another contributor's
 existing app — gets a submission rejected automatically.
@@ -41,6 +43,17 @@ fix, or an API migration across several apps. It must not add, remove or
 rename an app, and must not touch `apps-catalog.json` or `manual-tab.json`;
 those changes go in their own PR. Every rule below still applies to each
 app it touches, and each one gets its own compile check.
+
+## What a version bump is
+
+A PR that changes **only** the `version` field of **one** existing entry
+in `apps-catalog.json`, and nothing else — no other field on that entry,
+no other entry, no `apps/<name>.rs` or `manual-tab.json` changes. The new
+value must be a strict semver increase over the old one (`0.1.0` → `0.2.0`
+is fine; `0.1.0` → `0.1.0` or `0.1.0` → `0.0.9` is rejected). Open one of
+these whenever you release a new build of your app — the version is what
+`fpapp build-community` stamps into the downloadable package's filename
+and manifest, so it's how anyone can tell which build they have.
 
 ## The rules (enforced mechanically)
 
