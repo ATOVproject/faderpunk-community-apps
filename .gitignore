@@ -1,2 +1,8 @@
 .DS_Store
 /build/
+
+# manual-site build (tools/manual-site): node deps, the SSR bundle, and
+# the symlink build.sh points at the faderpunk checkout.
+node_modules/
+tools/manual-site/dist/
+tools/manual-site/.faderpunk

@@ -1,39 +1,27 @@
 name: Deploy community manual to Pages
 
-# PAUSED (2026-09-11): auto-deploy on push is disabled. faderpunk-forge's
-# build-manual shells out to the same inject_community_manual logic that
-# pr-scope.yml's manual-check used to run -- it string-matches literal
-# markers in faderpunk's ManualTab.tsx, and ATOVproject/faderpunk#666
-# rewrote that file (renamed the built-in apps array, changed the render
-# call). Confirmed broken: this workflow failed twice against real merges
-# to main today, "ManualTab.tsx: could not find the apps array
-# declaration" -- same error manual-check hit before it was replaced
-# (see faderpunk-community-apps#55). GitHub Pages keeps serving the last
-# successful build on a failed run, so the public manual isn't down, just
-# stale and falling further behind with every merge, silently.
+# Builds and publishes the standalone Community App Catalogue: every app
+# in apps-catalog.json, with its manual (manual-tab.json), latest version,
+# and a direct .fpapp download built fresh against the current faderpunk
+# firmware. Replaces the old faderpunk-forge-based build (see git history
+# for why that one was paused and retired) — this one is deliberately
+# self-contained (tools/build-manual.py, stdlib Python only, no shared
+# component code with faderpunk's own Configurator) so it's never tied to
+# that repo's release schedule. See Package H's plan (faderpunk repo) for
+# the full reasoning.
 #
-# faderpunk-forge's manual tooling is being retired here rather than
-# patched -- it exists to splice into a *whole rebuilt copy* of the
-# official Configurator manual, which was the plan before FPApps made
-# that unnecessary. The replacement is a lightweight, community-only
-# manual build that doesn't depend on another repo's internal file
-# structure at all (tracked in the FPApp plan, "Package H"). Re-enable the
-# `push` trigger below once that replacement lands; until then this job
-# still runs on demand (`workflow_dispatch`) if forge's markers happen to
-# get fixed in the meantime, but nothing auto-publishes.
-#
-# Every merge to main means the community catalog (or its manual-tab.json
-# entries) may have changed -- rebuild the real configurator's Manual tab
-# with every currently merged community app spliced in, and publish it as
-# a standalone GitHub Pages site. Same trigger posture as
-# community-edition.yml: a merge to main (maintainer-controlled, via the
-# PR gate), not an anonymous request. Read-only checkout of this repo's
-# own tree; faderpunk and faderpunk-forge are both public, no token
-# needed for either.
+# `push` re-enabled now that the replacement exists: a merge to main
+# (maintainer-controlled, via the PR gate), not an anonymous request.
 
 on:
-  # push:
-  #   branches: [main]
+  push:
+    branches: [main]
+    paths:
+      - "apps/**"
+      - "apps-catalog.json"
+      - "manual-tab.json"
+      - "tools/manual-site/**"
+      - "Makefile"
   workflow_dispatch:
 
 permissions:
@@ -57,32 +45,56 @@ jobs:
         with:
           path: faderpunk-community-apps
 
-      - name: Checkout faderpunk-forge (public, no token needed)
+      # Every .fpapp is ABI-pinned to the firmware it's built against —
+      # this is an unavoidable, pre-existing coupling (same reason
+      # `Makefile`'s FADERPUNK_DIR exists), not a new one. Building against
+      # main rather than a pinned release tag for now — revisit if that
+      # turns out to churn downloads too often.
+      - name: Checkout faderpunk (build against current main)
         uses: actions/checkout@v4
         with:
-          repository: ATOVproject/faderpunk-forge
-          path: faderpunk-forge
+          repository: ATOVproject/faderpunk
+          path: faderpunk
 
-      # Nightly, not stable: build-manual shells out to ./gen-bindings.sh
-      # internally, which requires nightly -- same reason manual-check
-      # (pr-scope.yml) uses nightly for this exact CLI.
-      - uses: dtolnay/rust-toolchain@master
+      # nightly first, stable second so stable ends up the default
+      # toolchain (fpapp's own `cargo run -p fpapp` needs that; only its
+      # internal native-crate build step explicitly selects `+nightly`
+      # itself, matching pr-scope.yml's manual-check job's reasoning for
+      # the same requirement).
+      - uses: dtolnay/rust-toolchain@nightly
         with:
-          toolchain: nightly
+          targets: thumbv8m.main-none-eabihf
+          components: rust-src
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: thumbv8m.main-none-eabihf
+
+      # fpapp shells out to arm-none-eabi-readelf to extract ABI info from
+      # each built native image — not on the runner by default.
+      - name: Install ARM binutils
+        run: sudo apt-get update && sudo apt-get install -y binutils-arm-none-eabi
+
+      - name: Build every catalog app as a downloadable .fpapp
+        working-directory: faderpunk-community-apps
+        run: make fpapps FADERPUNK_DIR=../faderpunk
 
       - name: Setup Node.js
         uses: actions/setup-node@v7
         with:
           node-version: "22"
 
+      # No version pinned here on purpose — action-setup reads the
+      # `packageManager` field from tools/manual-site/package.json, so the
+      # lockfile and the pnpm that reads it can't drift apart.
       - name: Setup pnpm
         uses: pnpm/action-setup@v6
         with:
-          version: latest
+          package_json_file: faderpunk-community-apps/tools/manual-site/package.json
 
-      - name: Build the faderpunk-forge CLI
-        working-directory: faderpunk-forge
-        run: cargo build --release -p faderpunk-forge
+      - name: Install the site build's dependencies
+        working-directory: faderpunk-community-apps/tools/manual-site
+        run: pnpm install --frozen-lockfile
 
       - name: Configure Pages
         id: pages
@@ -90,20 +102,19 @@ jobs:
 
       # base_path comes from configure-pages (the real serving path for a
       # project site, e.g. /faderpunk-community-apps/) rather than being
-      # hardcoded here, so this keeps working unmodified if the repo is
-      # ever renamed or a custom domain changes the base.
-      - name: Build the manual (every currently merged community app)
-        id: build
-        run: |
-          dist=$(./faderpunk-forge/target/release/faderpunk-forge build-manual \
-            --community-path faderpunk-community-apps \
-            --base-path "${{ steps.pages.outputs.base_path }}/" | tail -n1)
-          echo "dist=$dist" >> "$GITHUB_OUTPUT"
+      # hardcoded, so this keeps working unmodified if the repo is ever
+      # renamed or a custom domain changes the base.
+      - name: Build the catalogue site
+        working-directory: faderpunk-community-apps/tools/manual-site
+        env:
+          FADERPUNK_DIR: ${{ github.workspace }}/faderpunk
+          SITE_BASE: ${{ steps.pages.outputs.base_path }}/
+        run: ./build.sh "${{ github.workspace }}/site" "${{ github.workspace }}/faderpunk-community-apps/build/fpapps"
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: ${{ steps.build.outputs.dist }}
+          path: site
 
   deploy:
     needs: build
