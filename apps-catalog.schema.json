@@ -6,7 +6,7 @@
   "items": {
     "type": "object",
     "additionalProperties": false,
-    "required": ["appId", "module", "author"],
+    "required": ["appId", "module", "author", "version"],
     "properties": {
       "appId": {
         "type": "integer",
@@ -22,6 +22,11 @@
       "author": {
         "type": "string",
         "minLength": 1
+      },
+      "version": {
+        "type": "string",
+        "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
+        "description": "Semver major.minor.patch. Bumped in its own PR that changes only this field for one existing entry — see pr-scope-check.sh's 'version bump' scope. Must strictly increase from the previous value; contributor-bumped on each new release of the app."
       }
     }
   }

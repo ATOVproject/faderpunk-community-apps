@@ -14,9 +14,8 @@ use libfp::{
     Range, Value, APP_MAX_PARAMS,
 };
 
-use crate::{
-    app::{App, AppParams, AppStorage, ClockEvent, Led, ManagedStorage, ParamStore, SceneEvent},
-    tasks::leds::LedMode,
+use crate::app::{
+    App, AppParams, AppStorage, ClockEvent, Led, LedMode, ManagedStorage, ParamStore, SceneEvent,
 };
 
 pub const CHANNELS: usize = 1;

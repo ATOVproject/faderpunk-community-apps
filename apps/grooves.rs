@@ -25,7 +25,6 @@ use self::groove::{
 };
 use self::led_fx::{genre_nearest, genre_pair, lerp_i32, lerp_u8, spectrum_color};
 use self::ornament::{ArticContext, GrooveVoice, MAX_HITS};
-use crate::tasks::global_config::get_global_config;
 
 pub const CHANNELS: usize = 1;
 pub const PARAMS: usize = 16;
@@ -2121,7 +2120,7 @@ pub async fn run(
             // Grooves lives on the 16th grid, so it overlaps the device swing
             // window. Cap the genre swing by what the clock already spends and
             // follow its direction instead of pulling against it.
-            let gs = get_global_config().clock.swing_amount;
+            let gs = app.global_swing();
             // swing_delay_ms tops out at ⅔ of a 16th, i.e. 667 per-mille.
             let remaining = 667u32.saturating_sub(device_swing_permille(SIXTEENTH, gs));
             let pct_cap = (remaining * 100) / 667;

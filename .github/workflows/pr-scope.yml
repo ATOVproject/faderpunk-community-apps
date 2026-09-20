@@ -10,9 +10,10 @@ name: Community app submission check
 on:
   pull_request:
     types: [opened, synchronize, reopened]
-    # Only a submission-shaped PR needs this gate at all -- an infra/CI
-    # change (a new workflow file, a script fix, etc.) isn't a community
-    # app submission and will always fail the "exactly one app" scope
+    # Only a PR that touches apps needs this gate at all -- a new app
+    # submission or a fix to existing apps (the two scopes
+    # pr-scope-check.sh recognises). An infra/CI change (a new workflow
+    # file, a script fix, etc.) is neither and would always fail the scope
     # check by construction. Scoping the trigger, not the check itself,
     # keeps the check exactly as strict as it already is for the PRs it's
     # meant to gate.
@@ -33,7 +34,7 @@ jobs:
       GH_TOKEN: ${{ github.token }}
     outputs:
       passed: ${{ steps.check.outputs.passed }}
-      module: ${{ steps.assemble.outputs.module }}
+      modules: ${{ steps.assemble.outputs.modules }}
     steps:
       - name: Checkout (this repo's own scripts, not the fork's changes)
         uses: actions/checkout@v4
@@ -56,7 +57,22 @@ jobs:
           gh api "repos/${{ github.repository }}/contents/manual-tab.json?ref=$head_sha" \
             --jq '.content' | base64 -d > head-manual-tab.json
 
-      - name: Assemble fixture and derive module name
+      # The diff alone isn't enough for the whole-file checks (busy-loop,
+      # param handler): an app fix's patch holds only the changed lines.
+      # Fetched as text, same as everything else here -- never executed.
+      - name: Fetch the full head source of every touched app
+        run: |
+          head_sha="${{ github.event.pull_request.head.sha }}"
+          echo '{}' > head-sources.json
+          jq -r '.[] | select((.filename | test("^apps/[a-z][a-z0-9_]*\\.rs$")) and (.status == "added" or .status == "modified")) | .filename' files.json \
+            | while IFS= read -r f; do
+                gh api "repos/${{ github.repository }}/contents/$f?ref=$head_sha" \
+                  --jq '.content' | base64 -d > app-source.rs
+                jq --arg f "$f" --rawfile src app-source.rs '. + {($f): $src}' head-sources.json > head-sources.tmp
+                mv head-sources.tmp head-sources.json
+              done
+
+      - name: Assemble fixture and derive module names
         id: assemble
         run: |
           jq -n \
@@ -65,17 +81,20 @@ jobs:
             --slurpfile head head-catalog.json \
             --slurpfile base_manual base-manual-tab.json \
             --slurpfile head_manual head-manual-tab.json \
+            --slurpfile head_sources head-sources.json \
             '{
               files: $files[0],
               base_catalog: $base[0],
               head_catalog: $head[0],
               base_manual_tab: $base_manual[0],
-              head_manual_tab: $head_manual[0]
+              head_manual_tab: $head_manual[0],
+              head_sources: $head_sources[0]
             }' > fixture.json
 
-          module=$(jq -r '.files[] | select(.filename | test("^apps/[a-z][a-z0-9_]*\\.rs$")) | .filename' fixture.json \
-            | head -1 | xargs -r basename -s .rs)
-          echo "module=$module" >> "$GITHUB_OUTPUT"
+          # Every added or modified app: one for a submission, one or more
+          # for an app fix. The filename regex keeps these shell-safe.
+          modules=$(jq -c '[.files[] | select((.filename | test("^apps/[a-z][a-z0-9_]*\\.rs$")) and (.status == "added" or .status == "modified")) | .filename | ltrimstr("apps/") | rtrimstr(".rs")]' fixture.json)
+          echo "modules=$modules" >> "$GITHUB_OUTPUT"
 
       - name: Run scope check
         id: check
@@ -91,15 +110,21 @@ jobs:
     needs: scope-check
     if: needs.scope-check.outputs.passed == 'true'
     runs-on: ubuntu-latest
+    # One build per touched app, so an app fix spanning several apps checks
+    # each of them rather than only the first.
+    strategy:
+      fail-fast: false
+      matrix:
+        module: ${{ fromJSON(needs.scope-check.outputs.modules) }}
     env:
       GH_TOKEN: ${{ github.token }}
     steps:
       - name: Checkout (this repo's own scripts, not the fork's changes)
         uses: actions/checkout@v4
 
-      - name: Fetch the submitted app's file content
+      - name: Fetch the app's file content
         run: |
-          module="${{ needs.scope-check.outputs.module }}"
+          module="${{ matrix.module }}"
           head_sha="${{ github.event.pull_request.head.sha }}"
           gh api "repos/${{ github.repository }}/contents/apps/$module.rs?ref=$head_sha" \
             --jq '.content' | base64 -d > "$module.rs"
@@ -112,7 +137,7 @@ jobs:
 
       - name: Compile check (clone faderpunk, inject alongside every factory app, build)
         run: |
-          module="${{ needs.scope-check.outputs.module }}"
+          module="${{ matrix.module }}"
           .github/scripts/pr-build-check.sh "$module.rs" "$module"
 
   manual-check:
@@ -122,57 +147,46 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
     steps:
-      # faderpunk-forge is public, so this needs no token — a schema-valid
-      # manual-tab.json entry isn't the same as one that actually injects
-      # into ManualTab.tsx and builds; this step runs the real injection
-      # logic (inject_community_manual, same code the CLI's `preview` and
-      # the desktop app's Configurator view use) against a real faderpunk
-      # checkout to confirm it does, rather than trusting the schema check
-      # alone.
-      - name: Checkout faderpunk-forge (public, no token needed)
+      # This used to build faderpunk-forge and run its manual-splicing logic
+      # against a real faderpunk checkout, which caught a schema-valid entry
+      # that still didn't render. That path broke when #666 restructured
+      # ManualTab.tsx (forge string-matches literal markers in that file) and
+      # is being retired rather than repaired: forge's manual tooling was
+      # built for a "rebuild the whole manual with a custom firmware" plan
+      # that FPApps superseded. The eventual replacement for the "does it
+      # actually render" check is FPApps' own lightweight community-manual
+      # build, once that exists. Until then, this validates the one file
+      # against the schema this repo already ships but never ran in CI —
+      # self-contained, no cross-repo checkout, no fragile string-matching.
+      - name: Checkout (this repo's schemas, not the fork's changes)
         uses: actions/checkout@v4
-        with:
-          repository: ATOVproject/faderpunk-forge
-          path: faderpunk-forge
 
       # Only the one file, at the PR's head commit — same
       # never-checkout-fork-code posture as scope-check above, not a new
       # exception for this job.
       - name: Fetch the submitted manual-tab.json at PR head
         run: |
-          mkdir -p community-fixture
           head_sha="${{ github.event.pull_request.head.sha }}"
           gh api "repos/${{ github.repository }}/contents/manual-tab.json?ref=$head_sha" \
-            --jq '.content' | base64 -d > community-fixture/manual-tab.json
+            --jq '.content' | base64 -d > head-manual-tab.json
 
-      # Nightly, not stable: faderpunk-forge's check-manual shells out to
-      # ./gen-bindings.sh internally, which requires nightly (see that
-      # repo's AGENTS.md) — matches faderpunk's own CI convention for the
-      # same step (.github/workflows/ci.yml's check-configurator job).
-      # Nightly can build faderpunk-forge itself too (a plain stable-
-      # compatible crate), so one toolchain covers both.
-      - uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: nightly
+      - name: Validate against manual-tab.schema.json
+        run: npx -y ajv-cli@5 validate -s manual-tab.schema.json -d head-manual-tab.json --spec=draft2020 --strict=false
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v7
-        with:
-          node-version: "22"
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v6
-        with:
-          version: latest
-
-      - name: Build faderpunk-forge CLI
-        working-directory: faderpunk-forge
-        run: cargo build --release -p faderpunk-forge
-
-      - name: Verify the manual entry injects and the configurator builds
+      # apps-catalog.json had a schema (apps-catalog.schema.json) but no CI
+      # step ever ran it, the same gap manual-tab.json had before the step
+      # above closed it — added alongside the catalog's new required
+      # `version` field (see CONTRIBUTING.md and pr-scope-check.sh's
+      # "version bump" scope) so that field is actually enforced, not just
+      # documented in the schema.
+      - name: Fetch the submitted apps-catalog.json at PR head
         run: |
-          ./faderpunk-forge/target/release/faderpunk-forge check-manual \
-            --community-path community-fixture
+          head_sha="${{ github.event.pull_request.head.sha }}"
+          gh api "repos/${{ github.repository }}/contents/apps-catalog.json?ref=$head_sha" \
+            --jq '.content' | base64 -d > head-apps-catalog.json
+
+      - name: Validate against apps-catalog.schema.json
+        run: npx -y ajv-cli@5 validate -s apps-catalog.schema.json -d head-apps-catalog.json --spec=draft2020 --strict=false
 
   # AI first-pass review: not wired up yet. Per the plan (see CONTRIBUTING.md
   # "Review"), this is meant to run once scope-check and build-check both
