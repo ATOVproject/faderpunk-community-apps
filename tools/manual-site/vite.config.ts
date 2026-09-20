@@ -9,6 +9,16 @@ import { defineConfig } from "vite";
 // in src/styles.css, which can't read env vars) stable.
 export default defineConfig({
   base: process.env.SITE_BASE ?? "/",
+  resolve: {
+    // Keep the manual components resolving *through* the .faderpunk
+    // symlink instead of through their real path. Without this, their
+    // bare imports (react, react/jsx-runtime, classnames, …) resolve
+    // from wherever the faderpunk checkout actually lives, which has no
+    // node_modules in CI — so the build failed there while passing
+    // locally, where the Configurator's own node_modules happened to sit
+    // next to them and satisfied it by accident.
+    preserveSymlinks: true,
+  },
   build: {
     ssr: "src/entry.tsx",
     outDir: "dist",
