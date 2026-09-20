@@ -113,20 +113,24 @@ const Page = () => (
       const download = downloadByApp.get(entry.appId);
       return (
         <div key={entry.appId}>
-          <div className="mt-12 mb-2 flex items-center justify-between gap-4">
+          <div className="mt-12 mb-2">
             <span className="text-gray-400 text-sm">
               v{entry.version} · by {entry.author}
             </span>
-            {download ? (
-              <a
-                className="bg-yellow-fp rounded-sm px-3 py-1.5 text-sm font-semibold text-black"
-                href={download}
-              >
-                Download .fpapp
-              </a>
-            ) : null}
           </div>
-          <ManualApp app={manual} />
+          <ManualApp
+            app={manual}
+            action={
+              download ? (
+                <a
+                  className="bg-yellow-fp rounded-sm px-2 py-1.5 text-center text-xs font-semibold text-black"
+                  href={download}
+                >
+                  Download
+                </a>
+              ) : null
+            }
+          />
         </div>
       );
     })}
