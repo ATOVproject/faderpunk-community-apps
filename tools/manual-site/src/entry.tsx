@@ -140,6 +140,30 @@ const Page = () => (
 // rather than patching upstream for our benefit.
 const body = renderToStaticMarkup(<Page />).replaceAll('src="/img/', `src="${base}img/`);
 
+// The Configurator embeds this page in an iframe, and an iframe can't
+// size itself to its content — the embedder would have to guess a height
+// and leave the reader scrolling a box inside a page. It's also
+// cross-origin, so the parent can't measure us directly. So report our
+// height instead and let it resize; see CommunityCatalogue.tsx in
+// faderpunk, which listens for exactly this message and checks the
+// origin before trusting it. Standalone viewers just ignore it.
+const RESIZE_SCRIPT = `
+(function () {
+  if (window.parent === window) return;
+  var last = 0;
+  function report() {
+    var h = document.documentElement.scrollHeight;
+    if (h === last) return;
+    last = h;
+    window.parent.postMessage({ type: "fp-catalogue-height", height: h }, "*");
+  }
+  if (window.ResizeObserver) new ResizeObserver(report).observe(document.documentElement);
+  window.addEventListener("load", report);
+  document.addEventListener("DOMContentLoaded", report);
+  report();
+})();
+`.trim();
+
 const html = `<!doctype html>
 <html lang="en" class="dark">
 <head>
@@ -152,6 +176,7 @@ const html = `<!doctype html>
 <div class="mx-auto max-w-5xl px-4 py-10">
 ${body}
 </div>
+<script>${RESIZE_SCRIPT}</script>
 </body>
 </html>
 `;
