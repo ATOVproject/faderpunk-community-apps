@@ -59,8 +59,12 @@ if (downloadsDir && fs.existsSync(downloadsDir)) {
   fs.mkdirSync(downloadsOut, { recursive: true });
   const built = fs.readdirSync(downloadsDir).filter((f) => f.endsWith(".fpapp"));
   for (const entry of catalog) {
-    const prefix = `${entry.module.replace(/_/g, "-")}-`;
-    const file = built.find((f) => f.startsWith(prefix));
+    // Accept both "<module>.fpapp" and "<module>-<version>.fpapp": the
+    // version suffix only appears once ATOVproject/faderpunk#695 lands,
+    // and this build shouldn't care which side merges first.
+    const stem = entry.module.replace(/_/g, "-");
+    const pattern = new RegExp(`^${stem}(-\\d+\\.\\d+\\.\\d+)?\\.fpapp$`);
+    const file = built.find((f) => pattern.test(f));
     if (!file) continue;
     fs.copyFileSync(path.join(downloadsDir, file), path.join(downloadsOut, file));
     downloadByApp.set(entry.appId, `downloads/${file}`);
