@@ -15,11 +15,9 @@ use libfp::{
     Param, Range, Value, APP_MAX_PARAMS,
 };
 
-use crate::{
-    app::{
-        App, AppParams, AppStorage, ClockEvent, Led, Leds, ManagedStorage, ParamStore, SceneEvent,
-    },
-    tasks::leds::LedMode,
+use crate::app::{
+    App, AppParams, AppStorage, ClockEvent, Led, LedMode, Leds, ManagedStorage, ParamStore,
+    SceneEvent,
 };
 
 use self::led_fx::{color_hue, hsv_to_rgb};
