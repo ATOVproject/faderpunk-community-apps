@@ -151,16 +151,26 @@ const RESIZE_SCRIPT = `
 (function () {
   if (window.parent === window) return;
   var last = 0;
-  function report() {
-    var h = document.documentElement.scrollHeight;
-    if (h === last) return;
-    last = h;
-    window.parent.postMessage({ type: "fp-catalogue-height", height: h }, "*");
+  function post() {
+    last = document.documentElement.scrollHeight;
+    window.parent.postMessage({ type: "fp-catalogue-height", height: last }, "*");
   }
-  if (window.ResizeObserver) new ResizeObserver(report).observe(document.documentElement);
-  window.addEventListener("load", report);
-  document.addEventListener("DOMContentLoaded", report);
-  report();
+  function postIfChanged() {
+    if (document.documentElement.scrollHeight !== last) post();
+  }
+  // The embedder may mount its listener after we've already loaded, so
+  // answering on request is what actually makes this reliable —
+  // spontaneous reports alone lose the race and we'd never speak again.
+  window.addEventListener("message", function (event) {
+    if (event.data && event.data.type === "fp-catalogue-request-height") post();
+  });
+  if (window.ResizeObserver) new ResizeObserver(postIfChanged).observe(document.documentElement);
+  window.addEventListener("load", post);
+  document.addEventListener("DOMContentLoaded", post);
+  // Fonts and images land after load and change the height; catch that
+  // without leaving a timer running forever.
+  [100, 500, 1500].forEach(function (d) { setTimeout(postIfChanged, d); });
+  post();
 })();
 `.trim();
 
