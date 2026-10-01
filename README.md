@@ -34,6 +34,15 @@ compatibility with a given firmware build is decided by an ABI contract, not
 by matching revisions — a package keeps working across firmware updates that
 don't break the FPApp ABI, so there's no need to rebuild after every update.
 
+For prebuilt packages, open the repository's **Actions** tab and select
+**Build FPApps for latest firmware release**. Download the ZIP from a successful
+run's artifacts and extract it to install individual `.fpapp` files. The ZIP is
+named for the newest published firmware release, including betas — for example,
+`faderpunk-community-apps-v1.13.0-beta.0.zip`. Configurator and library releases
+are excluded. The workflow runs when app sources, catalog, manual, or build
+configuration change on `main`, checks daily for firmware updates, and can also
+be started manually with **Run workflow**. Artifacts are retained for 90 days.
+
 If the repositories are not siblings, provide the Faderpunk checkout path:
 
 ```sh

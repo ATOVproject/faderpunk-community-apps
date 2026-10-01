@@ -1,0 +1,104 @@
+name: Build FPApps for latest firmware release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/**"
+      - "apps-catalog.json"
+      - "manual-tab.json"
+      - "Makefile"
+      - ".github/workflows/build-fpapps.yml"
+  workflow_dispatch:
+  # Also pick up new firmware releases without a community app change.
+  schedule:
+    - cron: "23 6 * * *"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout community apps
+        uses: actions/checkout@v4
+        with:
+          path: faderpunk-community-apps
+
+      # /releases/latest excludes prereleases. This monorepo also releases
+      # libfp and configurator, so only firmware tags qualify.
+      - name: Find newest published firmware release (including betas)
+        id: firmware
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag=$(gh api --paginate --slurp \
+            'repos/ATOVproject/faderpunk/releases?per_page=100' | \
+            jq -r '[.[][] | select(.draft == false and (.tag_name | startswith("faderpunk/")))] | sort_by(.published_at) | last | .tag_name // empty')
+          if [[ ! "$tag" =~ ^faderpunk/([A-Za-z0-9][A-Za-z0-9._-]*)$ ]]; then
+            echo "::error::No firmware release with a supported tag was found: $tag"
+            exit 1
+          fi
+          version="${BASH_REMATCH[1]}"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "archive=faderpunk-community-apps-$version" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout firmware release as a sibling
+        uses: actions/checkout@v4
+        with:
+          repository: ATOVproject/faderpunk
+          ref: ${{ steps.firmware.outputs.tag }}
+          path: faderpunk
+
+      # Native FPApps select +nightly internally; the packaging CLI uses stable.
+      - uses: dtolnay/rust-toolchain@nightly
+        with:
+          targets: thumbv8m.main-none-eabihf
+          components: rust-src
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: thumbv8m.main-none-eabihf
+
+      - name: Install ARM binutils
+        run: sudo apt-get update && sudo apt-get install -y binutils-arm-none-eabi
+
+      - name: Build all catalogued FPApps
+        working-directory: faderpunk-community-apps
+        run: make fpapps
+
+      - name: Package FPApps
+        working-directory: faderpunk-community-apps
+        env:
+          ARCHIVE: ${{ steps.firmware.outputs.archive }}
+          FIRMWARE_TAG: ${{ steps.firmware.outputs.tag }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          from zipfile import ZIP_DEFLATED, ZipFile
+
+          packages = sorted(Path("build/fpapps").glob("*.fpapp"))
+          expected = len(json.loads(Path("apps-catalog.json").read_text()))
+          if not packages or len(packages) != expected:
+              raise SystemExit(f"Expected {expected} FPApps, found {len(packages)}")
+          archive = Path("build") / f"{os.environ['ARCHIVE']}.zip"
+          with ZipFile(archive, "w", compression=ZIP_DEFLATED) as output:
+              for package in packages:
+                  output.write(package, arcname=package.name)
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as summary:
+              summary.write(f"Built {len(packages)} FPApps against `{os.environ['FIRMWARE_TAG']}`.\n\n")
+              summary.write(f"Download `{archive.name}` from this run's artifacts.\n")
+          PY
+
+      - name: Upload release-named ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.firmware.outputs.archive }}
+          path: faderpunk-community-apps/build/${{ steps.firmware.outputs.archive }}.zip
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 90
