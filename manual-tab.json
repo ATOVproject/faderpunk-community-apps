@@ -1,168 +1,134 @@
 [
-  {
-    "appId": 100,
-    "title": "Heat Pump",
-    "description": "Clock-synced sidechain ducking: hold + log release",
-    "icon": "ad-env",
-    "color": "Pink",
-    "text": "Heat Pump is a clock-synced sidechain ducking envelope: on each division the CV ducks, holds briefly, then recovers with a logarithmic release. Patch CV Out to a filter or VCA; MIDI CC mirrors when Out is enabled.\n\nMain sets release speed. Shift + fader sets depth. Button + fader picks clock division. Short tap triggers one manual duck. Long press mutes without snapping to idle. Shift + long toggles invert.",
-    "channels": [
-      {
-        "jackTitle": "Jack",
-        "jackDescription": "CV Out = duck envelope; CV In modulates Depth, Release, or triggers Duck.",
-        "faderTitle": "Release",
-        "faderDescription": "Log recovery after hold.",
-        "faderPlusFnTitle": "Division",
-        "faderPlusFnDescription": "Button + fader picks clock division.",
-        "faderPlusShiftTitle": "Depth",
-        "faderPlusShiftDescription": "Duck amount per division.",
-        "fnTitle": "Trigger / mute",
-        "fnDescription": "Short = manual duck; Long = mute.",
-        "ledTop": "Envelope level",
-        "ledBottom": "Division color on Button LED",
-        "fnPlusShiftTitle": "Invert",
-        "fnPlusShiftDescription": "Shift + long toggles invert."
-      }
-    ],
-    "params": [
-      "Color",
-      "Range",
-      "MIDI Channel",
-      "MIDI CC",
-      "MIDI NRPN",
-      "MIDI Out",
-      "Jack",
-      "CV Dest",
-      "CV Att"
-    ],
-    "storage": [
-      "Release",
-      "Depth",
-      "Division",
-      "Invert",
-      "Muted"
-    ]
-  },
-  {
-    "appId": 101,
-    "title": "Grooves",
-    "description": "Multi-genre MIDI drum grooves with feel",
-    "icon": "die",
-    "color": "Orange",
-    "text": "Grooves is a one-channel multi-genre drum helper with up to seven MIDI voices clock-synced in 4/4. **Groove** picks the genre family; **Density** and **Feel** shape fills and character; **Drummer** personas (long press) change ornament style. Swing depth is capped by **Swing max %** (sign = direction). Jack modes include Any/Stacked CV out and CV in for Density, Feel, or Reset. Clock-driven scheduling stays in a dedicated processor; MIDI sends run in a separate task (`pending_*` isolation).",
-    "channels": [
-      {
-        "jackTitle": "Jack output",
-        "jackDescription": "Any: velocity-weighted pulse per hit. Stacked: 1 V kick, 2 V snare, 4 V hats.",
-        "faderTitle": "Density",
-        "faderDescription": "Reveals extra drum hits as ghosts.",
-        "faderPlusFnTitle": "Feel",
-        "faderPlusFnDescription": "Attenuates groove character.",
-        "faderPlusShiftTitle": "Genre",
-        "faderPlusShiftDescription": "Scrub pattern families.",
-        "fnTitle": "Reset / Mute",
-        "fnDescription": "Short: downbeat. Long: mute.",
-        "fnPlusShiftTitle": "Reverse / Jack",
-        "fnPlusShiftDescription": "Short: reverse swing. Long: Any vs Stacked.",
-        "ledTop": "Bar position",
-        "ledTopPlusShift": "Genre color",
-        "ledTopPlusFn": "Feel (red)",
-        "ledBottom": "Hit flash"
-      }
-    ],
-    "params": [
-      "MIDI Note Kick",
-      "MIDI Note Snare",
-      "MIDI Note Hats",
-      "MIDI Note Open Hat",
-      "MIDI Note Low Tom",
-      "MIDI Note High Tom",
-      "MIDI Note Clap",
-      "MIDI Ch",
-      "Ch Map",
-      "Groove",
-      "Swing max %",
-      "GATE %",
-      "MIDI Out",
-      "Jack",
-      "CV Att",
-      "Drummer"
-    ],
-    "storage": [
-      "Feel",
-      "Density",
-      "Muted",
-      "Drummer"
-    ]
-  },
-  {
-    "appId": 122,
-    "title": "Volata",
-    "description": "Staccato melody bursts in device key — always newly generated, always harmonic",
-    "icon": "note",
-    "color": "Rose",
-    "text": "Volata fires short, staccato melody bursts in the device key. Each burst is generated on the fly with functional harmony — weighted I, vi, ii, V plus IV and iii — and never repeats the same contour twice.\n#### Rhythm and length\n- Mixed rhythm: 16ths, 8ths, dotted 8ths and quarters, with rests as first-class events (offbeats rest more often).\n- Length is still a 16th-slot budget; the generator packs duration cells into that budget.\n#### Gate\n- **Gate %** is relative to each sounding note’s duration, not to a fixed 16th slot — 50% on a quarter is two 16ths of gate, 50% on a 16th is half a slot.\n- Rests ignore gate. Pitch CV drops with note-off.\n#### Controls\n- **Ch0 short** mutes both channels and dims the LEDs.\n- **Ch1 short** triggers one burst immediately and cuts any burst in progress.\n- With the clock running, events land on the sixteenth grid; when stopped, sixteenths run at ~125 ms (120 BPM fallback).\n#### Auto-fire\n- Fires on bar downbeat (`tick % 96 == 0`) when unmuted and the gap (in sixteenth slots) has elapsed.\n- Gap 0 means the next bar.\n#### Modes\n- **Note** mode walks a monophonic chord-tone line with passing and neighbor tones.\n- **Chord** arpeggiates the triad.\n- **Voicings** picks close, 1st inversion, 2nd inversion, or drop-2 spread per burst.\n#### CV and quantizer\n- CV In on Ch0 (Length / Gap / Gate) and Pitch CV Out on Ch1 follow Range and V/Oct.\n- Follow device tonic and Follow device scale tie into the global quantizer; long-press Ch0 cycles the local Scale set when scale isn’t followed.\n#### Clock\n- Clock drain is isolate-safe (`clock_drain` / `glob_ticks` only — no `clock_ticker`).",
-    "channels": [
-      {
-        "jackTitle": "CV In",
-        "jackDescription": "±5 V input modulates Length, Gap, or Gate per CV Dest param.",
-        "faderTitle": "Burst length",
-        "faderDescription": "Number of sixteenth-note slots per burst (1–32).",
-        "faderPlusShiftTitle": "Gap",
-        "faderPlusShiftDescription": "Sixteenth slots between auto-fired bursts (0–96; 0 = next bar).",
-        "faderPlusFnTitle": "Gate %",
-        "faderPlusFnDescription": "Gate as % of that note’s duration (16th / 8th / dotted 8th / quarter). Rests ignore gate.",
-        "fnTitle": "Mute / Scale",
-        "fnDescription": "Short: mute. Long: cycle Scale set.",
-        "fnPlusShiftTitle": "Reverse scale",
-        "fnPlusShiftDescription": "Long press with Shift cycles Scale backward.",
-        "ledTop": "Main: burst progress while gated. Alt: white fader meter. Third: scale-color fader meter",
-        "ledTopPlusShift": "Alt layer — white Top/Bottom split of gap fader",
-        "ledTopPlusFn": "Third layer — scale-color Top/Bottom split of gate% fader",
-        "ledBottom": "Pairs with Top as the low half of the latch meter; off on Main when idle"
-      },
-      {
-        "jackTitle": "Pitch CV Out",
-        "jackDescription": "1V/oct pitch of the current note (Range + V/Oct params).",
-        "faderTitle": "Pitch center",
-        "faderDescription": "Melodic center around Base Note, ±4 octaves.",
-        "faderPlusShiftTitle": "Pitch range",
-        "faderPlusShiftDescription": "Meander span in scale degrees (1–32).",
-        "faderPlusFnTitle": "Velocity",
-        "faderPlusFnDescription": "MIDI velocity, 1–full.",
-        "fnTitle": "Fire / Voicing",
-        "fnDescription": "Short: fire burst now. Long: cycle Note → Chord → Voicings.",
-        "fnPlusShiftTitle": "Reverse voicing",
-        "fnPlusShiftDescription": "Long press with Shift cycles voicing backward.",
-        "ledTop": "Main: pitch height while gated. Alt: white fader meter. Third: voicing-color fader meter",
-        "ledTopPlusShift": "Alt layer — white Top/Bottom split of range fader",
-        "ledTopPlusFn": "Third layer — voicing-color Top/Bottom split of velocity fader",
-        "ledBottom": "Pairs with Top as the low half of the latch meter; off on Main when idle"
-      }
-    ],
-    "params": [
-      "MIDI Channel",
-      "Base Note",
-      "Color",
-      "MIDI Out",
-      "Range",
-      "V/Oct",
-      "Follow device tonic",
-      "Follow device scale",
-      "Scale",
-      "CV Dest",
-      "CV Att"
-    ],
-    "storage": [
-      "Burst length",
-      "Gap",
-      "Gate %",
-      "Pitch center",
-      "Pitch range",
-      "Velocity",
-      "Muted",
-      "Scale set",
-      "Voicing mode"
-    ]
-  }
+    {
+        "appId": 100,
+        "module": "heat_pump",
+        "author": "kosmar",
+        "version": "0.1.0"
+    },
+    {
+        "appId": 101,
+        "module": "grooves",
+        "author": "kosmar",
+        "version": "0.1.0"
+    },
+    {
+        "appId": 102,
+        "module": "fibonacci_gate",
+        "author": "kosmar",
+        "version": "0.1.0"
+    },
+    {
+        "appId": 103,
+        "module": "super_lfo",
+        "author": "kosmar",
+        "version": "0.1.0"
+    },
+    {
+        "appId": 104,
+        "module": "echolot",
+        "author": "kosmar",
+        "version": "0.1.0"
+    },
+    {
+        "appId": 105,
+        "module": "arp_de_levy",
+        "author": "kosmar",
+        "version": "0.1.1"
+    },
+    {
+        "appId": 106,
+        "module": "vamp",
+        "author": "kosmar",
+        "version": "0.1.0"
+    },
+    {
+        "appId": 107,
+        "module": "hold_sam",
+        "author": "kosmar",
+        "version": "0.1.0"
+    },
+    {
+        "appId": 108,
+        "module": "harmonica",
+        "author": "kosmar",
+        "version": "0.1.0"
+    },
+    {
+        "appId": 109,
+        "module": "loop_de_cay",
+        "author": "kosmar",
+        "version": "0.1.0"
+    },
+    {
+        "appId": 110,
+        "module": "control_issues",
+        "author": "kosmar",
+        "version": "0.1.0"
+    },
+    {
+        "appId": 111,
+        "module": "venn",
+        "author": "kosmar",
+        "version": "0.1.0"
+    },
+    {
+        "appId": 112,
+        "module": "bassment",
+        "author": "kosmar",
+        "version": "0.1.0"
+    },
+    {
+        "appId": 113,
+        "module": "contura",
+        "author": "kosmar",
+        "version": "0.1.0"
+    },
+    {
+        "appId": 114,
+        "module": "manifold",
+        "author": "kosmar",
+        "version": "0.1.0"
+    },
+    {
+        "appId": 115,
+        "module": "ripppple",
+        "author": "kosmar",
+        "version": "0.1.0"
+    },
+    {
+        "appId": 116,
+        "module": "dit_dah",
+        "author": "kosmar",
+        "version": "0.1.0"
+    },
+    {
+        "appId": 117,
+        "module": "maniac_bounce",
+        "author": "kosmar",
+        "version": "0.1.0"
+    },
+    {
+        "appId": 118,
+        "module": "giant_steps",
+        "author": "kosmar",
+        "version": "0.1.0"
+    },
+    {
+        "appId": 119,
+        "module": "axis_matrix",
+        "author": "kosmar",
+        "version": "0.1.0"
+    },
+    {
+        "appId": 120,
+        "module": "sift",
+        "author": "thorinside",
+        "version": "0.1.0"
+    },
+    {
+        "appId": 122,
+        "module": "volata",
+        "author": "kosmar",
+        "version": "0.1.0"
+    }
 ]

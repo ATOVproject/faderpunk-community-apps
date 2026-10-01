@@ -24,12 +24,33 @@ name: Publish community edition (all apps)
 # *before* touching the existing release, so the last good build stays
 # live rather than being silently replaced by a broken one.
 
+# RETIRED (2026-09-13): auto-publish on merge is disabled.
+#
+# This built one firmware with every community app compiled in — the way to get
+# community apps before FPApps existed. Installing apps individually replaced
+# it, and the maintainer retired the all-in-one build accordingly.
+#
+# It also cannot succeed any more. ATOVproject/faderpunk#666 reserved the last
+# 512 KiB of flash for the FPApp slots, shrinking the firmware's own region from
+# 2048K to 1536K. The all-apps selection was already close to the ceiling and
+# now overflows it:
+#
+#   rust-lld: error: section '.rodata' will not fit in region 'FLASH':
+#             overflowed by 91944 bytes
+#
+# So the failure is structural, not a regression to chase: the space this build
+# needs is exactly the space that makes installable apps possible. It had been
+# failing silently on every merge since #666 landed.
+#
+# Left runnable on demand (`workflow_dispatch`) for anyone who wants to try a
+# smaller selection by hand. Re-enable the `push` trigger only if the all-in-one
+# firmware is deliberately revived, which would require giving the flash back.
 on:
-  push:
-    branches: [main]
-    paths:
-      - "apps/**"
-      - "apps-catalog.json"
+  # push:
+  #   branches: [main]
+  #   paths:
+  #     - "apps/**"
+  #     - "apps-catalog.json"
   workflow_dispatch:
 
 permissions:

@@ -3,9 +3,9 @@
     {
       "filename": "apps/test_clean.rs",
       "status": "added",
-      "additions": 12,
+      "additions": 15,
       "deletions": 0,
-      "patch": "@@ -0,0 +1,12 @@\n+use crate::app::{App, AppParams, AppStorage, Led, ManagedStorage, ParamStore};\n+\n+pub const CHANNELS: usize = 1;\n+\n+pub static CONFIG: Config<0> = Config::new(\"Test Clean\", \"A clean POC submission\", Color::Blue, AppIcon::Fader);\n+\n+    let x = Some(1).unwrap();\n+pub async fn run(app: &App<CHANNELS>) {\n+    loop {\n+        app.use_buttons().wait_for_down(0).await;\n+    }\n+}"
+      "patch": "@@ -0,0 +1,15 @@\n+use crate::{\n+    app::{App, AppParams, AppStorage, Led, ManagedStorage, ParamStore},\n+    storage::store_layout,\n+};\n+\n+pub const CHANNELS: usize = 1;\n+\n+pub static CONFIG: Config<0> = Config::new(\"Test Braced Bypass\", \"A clean-looking POC submission\", Color::Blue, AppIcon::Fader);\n+\n+pub async fn run(app: &App<CHANNELS>) {\n+    loop {\n+        app.use_buttons().wait_for_down(0).await;\n+    }\n+}"
     },
     {
       "filename": "apps-catalog.json",
@@ -298,8 +298,7 @@
     {
       "appId": 200,
       "module": "test_clean",
-      "author": "poc-tester",
-      "version": "0.1.0"
+      "author": "poc-tester"
     }
   ],
   "base_manual_tab": [
