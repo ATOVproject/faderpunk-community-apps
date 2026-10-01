@@ -12,6 +12,48 @@
     "version": "0.1.0"
   },
   {
+    "appId": 104,
+    "module": "echolot",
+    "author": "kosmar",
+    "version": "0.1.0"
+  },
+  {
+    "appId": 110,
+    "module": "control_issues",
+    "author": "kosmar",
+    "version": "0.1.0"
+  },
+  {
+    "appId": 111,
+    "module": "venn",
+    "author": "kosmar",
+    "version": "0.1.0"
+  },
+  {
+    "appId": 114,
+    "module": "manifold",
+    "author": "kosmar",
+    "version": "0.1.0"
+  },
+  {
+    "appId": 115,
+    "module": "ripppple",
+    "author": "kosmar",
+    "version": "0.1.0"
+  },
+  {
+    "appId": 116,
+    "module": "dit_dah",
+    "author": "kosmar",
+    "version": "0.1.0"
+  },
+  {
+    "appId": 117,
+    "module": "maniac_bounce",
+    "author": "kosmar",
+    "version": "0.1.0"
+  },
+  {
     "appId": 102,
     "module": "fibonacci_gate",
     "author": "kosmar",
@@ -20,12 +62,6 @@
   {
     "appId": 103,
     "module": "super_lfo",
-    "author": "kosmar",
-    "version": "0.1.0"
-  },
-  {
-    "appId": 104,
-    "module": "echolot",
     "author": "kosmar",
     "version": "0.1.0"
   },
@@ -60,18 +96,6 @@
     "version": "0.1.0"
   },
   {
-    "appId": 110,
-    "module": "control_issues",
-    "author": "kosmar",
-    "version": "0.1.0"
-  },
-  {
-    "appId": 111,
-    "module": "venn",
-    "author": "kosmar",
-    "version": "0.1.0"
-  },
-  {
     "appId": 112,
     "module": "bassment",
     "author": "kosmar",
@@ -80,30 +104,6 @@
   {
     "appId": 113,
     "module": "contura",
-    "author": "kosmar",
-    "version": "0.1.0"
-  },
-  {
-    "appId": 114,
-    "module": "manifold",
-    "author": "kosmar",
-    "version": "0.1.0"
-  },
-  {
-    "appId": 115,
-    "module": "ripppple",
-    "author": "kosmar",
-    "version": "0.1.0"
-  },
-  {
-    "appId": 116,
-    "module": "dit_dah",
-    "author": "kosmar",
-    "version": "0.1.0"
-  },
-  {
-    "appId": 117,
-    "module": "maniac_bounce",
     "author": "kosmar",
     "version": "0.1.0"
   },
