@@ -15,7 +15,11 @@ on:
     - cron: "23 6 * * *"
 
 permissions:
-  contents: read
+  contents: write # Create releases and upload their ZIP assets.
+
+concurrency:
+  group: release-fpapps
+  cancel-in-progress: false
 
 jobs:
   build:
@@ -34,16 +38,21 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          tag=$(gh api --paginate --slurp \
+          release=$(gh api --paginate --slurp \
             'repos/ATOVproject/faderpunk/releases?per_page=100' | \
-            jq -r '[.[][] | select(.draft == false and (.tag_name | startswith("faderpunk/")))] | sort_by(.published_at) | last | .tag_name // empty')
+            jq -r '[.[][] | select(.draft == false and (.tag_name | startswith("faderpunk/")))] | sort_by(.published_at) | last // error("No published firmware release found")')
+          tag=$(jq -r .tag_name <<< "$release")
           if [[ ! "$tag" =~ ^faderpunk/([A-Za-z0-9][A-Za-z0-9._-]*)$ ]]; then
             echo "::error::No firmware release with a supported tag was found: $tag"
             exit 1
           fi
           version="${BASH_REMATCH[1]}"
-          echo "tag=$tag" >> "$GITHUB_OUTPUT"
-          echo "archive=faderpunk-community-apps-$version" >> "$GITHUB_OUTPUT"
+          {
+            echo "title=$(jq -r '.name // .tag_name' <<< "$release" | tr '\r\n' '  ')"
+            echo "prerelease=$(jq -r .prerelease <<< "$release")"
+            echo "tag=$tag"
+            echo "archive=faderpunk-community-apps-$version"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Checkout firmware release as a sibling
         uses: actions/checkout@v4
@@ -102,3 +111,39 @@ jobs:
           if-no-files-found: error
           compression-level: 0
           retention-days: 90
+
+      - name: Publish ZIP to matching community release
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FIRMWARE_TAG: ${{ steps.firmware.outputs.tag }}
+          RELEASE_TITLE: ${{ steps.firmware.outputs.title }}
+          PRERELEASE: ${{ steps.firmware.outputs.prerelease }}
+          ARCHIVE: ${{ steps.firmware.outputs.archive }}
+        run: |
+          # Fetch the complete list so API/auth failures cannot look like a
+          # missing release. Keep the existing release and replace only our ZIP.
+          releases=$(gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/releases?per_page=100")
+          existing=$(jq -r --arg tag "$FIRMWARE_TAG" '[.[][] | select(.tag_name == $tag)] | length' <<< "$releases")
+          if [[ "$existing" == 0 ]]; then
+            flags=(--latest=false)
+            if [[ "$PRERELEASE" == true ]]; then
+              flags+=(--prerelease)
+            fi
+            cat > "$RUNNER_TEMP/fpapps-release-notes.md" <<EOF
+          Community FPApps built against [$FIRMWARE_TAG](https://github.com/ATOVproject/faderpunk/releases/tag/$FIRMWARE_TAG).
+
+          Download $ARCHIVE.zip, extract it, and install individual .fpapp files through the Configurator.
+          This ZIP is refreshed when community apps change. Community source: $GITHUB_SHA.
+          Build: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID.
+          EOF
+            gh release create "$FIRMWARE_TAG" --repo "$GITHUB_REPOSITORY" \
+              --target "$GITHUB_SHA" --title "$RELEASE_TITLE" \
+              --notes-file "$RUNNER_TEMP/fpapps-release-notes.md" "${flags[@]}" \
+              "faderpunk-community-apps/build/$ARCHIVE.zip"
+          else
+            gh release upload "$FIRMWARE_TAG" \
+              "faderpunk-community-apps/build/$ARCHIVE.zip" \
+              --repo "$GITHUB_REPOSITORY" --clobber
+          fi
+          echo "Download the ZIP from [the community release]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/tag/$FIRMWARE_TAG)." >> "$GITHUB_STEP_SUMMARY"
