@@ -24,12 +24,13 @@ use libfp::{
 };
 
 use crate::app::{
-    App, AppParams, AppStorage, ClockEvent, Die, Led, ManagedStorage, ParamStore, SceneEvent,
+    App, AppParams, AppStorage, ClockEvent, Die, Led, ManagedStorage, ParamStore, Quantizer,
+    SceneEvent,
 };
 
 use self::contura_scales::{
-    build_pool, clamp_scale, follow_mask_tonic, next_scale, prev_scale, POOL_CAP, SCALE_COUNT,
-    SCALE_LABELS,
+    build_pool, clamp_scale, next_scale, prev_scale, POOL_CAP, SCALE_COUNT, SCALE_LABELS,
+    SCALE_MASKS,
 };
 
 pub const CHANNELS: usize = 1;
@@ -884,6 +885,9 @@ pub async fn run(
     let pending_silence = app.make_global(false);
     let glob_gate_on = app.make_global(false);
     let glob_midi_div = app.make_global(RESOLUTION[division.min(RESOLUTION.len() - 1)]);
+    // Only used to read the device scale/tonic via `get_scale()` — this app
+    // doesn't quantize its own CV output, so range/vpo/bypass are unused.
+    let quantizer = app.use_quantizer(Range::default(), VoltPerOct::default(), true);
 
     let fut_engine = async {
         let mut pool: Vec<u8, POOL_CAP> = Vec::new();
@@ -893,14 +897,20 @@ pub async fn run(
         let mut cached_tonic = 0u8;
         let mut pending_main: Option<(u8, u16, u8)> = None;
 
-        let rebuild = |pool: &mut Vec<u8, POOL_CAP>,
-                       cached_tonic: &mut u8,
-                       scale_set: u8,
-                       octaves: u8,
-                       base: u8|
+        let rebuild = async |pool: &mut Vec<u8, POOL_CAP>,
+                             cached_tonic: &mut u8,
+                             scale_set: u8,
+                             octaves: u8,
+                             base: u8|
          -> usize {
-            let (mask, tonic) =
-                follow_mask_tonic(follow_scale, follow_tonic, scale_set as usize, base_note);
+            let (mask, tonic) = follow_mask_tonic(
+                &quantizer,
+                follow_scale,
+                follow_tonic,
+                scale_set as usize,
+                base_note,
+            )
+            .await;
             *cached_tonic = tonic;
             *pool = build_pool(mask, tonic, base, octaves);
             for n in pool.iter_mut() {
@@ -917,7 +927,8 @@ pub async fn run(
             last_scale,
             last_oct,
             base_u8,
-        );
+        )
+        .await;
         let mut last_note = pool.get(plen0 / 3).copied().unwrap_or(base_u8);
 
         let mut last_seen = glob_ticks.get();
@@ -1087,7 +1098,8 @@ pub async fn run(
                     scale_set,
                     octaves,
                     base_u8,
-                );
+                )
+                .await;
                 last_scale = scale_set;
                 last_oct = octaves;
                 last_note = pool.get(plen / 3).copied().unwrap_or(base_u8);
@@ -1209,8 +1221,14 @@ pub async fn run(
             phrase_step = phrase_step.wrapping_add(1);
             if phrase_step >= phrase_len {
                 phrase_step = 0;
-                let (_, tonic) =
-                    follow_mask_tonic(follow_scale, follow_tonic, scale_set as usize, base_note);
+                let (_, tonic) = follow_mask_tonic(
+                    &quantizer,
+                    follow_scale,
+                    follow_tonic,
+                    scale_set as usize,
+                    base_note,
+                )
+                .await;
                 if tonic != cached_tonic {
                     let plen = rebuild(
                         &mut pool,
@@ -1218,7 +1236,8 @@ pub async fn run(
                         scale_set,
                         octaves,
                         base_u8,
-                    );
+                    )
+                    .await;
                     last_note = pool
                         .get(plen.saturating_sub(1) / 3)
                         .copied()
@@ -1532,32 +1551,26 @@ pub async fn run(
     .await;
 }
 
+async fn follow_mask_tonic(
+    quantizer: &Quantizer,
+    follow_scale: bool,
+    follow_tonic: bool,
+    scale_set: usize,
+    base: MidiNote,
+) -> (u16, u8) {
+    let local = SCALE_MASKS[scale_set.min(SCALE_COUNT - 1)];
+    // Contura's scale sets are its own (Folk, Hexatonic …), so only the
+    // followed case can go through a plain Key.
+    let mask = if follow_scale {
+        follow_key::device_key(quantizer).await.as_u16_key()
+    } else {
+        local
+    };
+    (mask, follow_key::tonic_pc(quantizer, follow_tonic, base).await)
+}
+
 mod contura_scales {
     use heapless::Vec;
-    use libfp::MidiNote;
-
-
-    mod follow_key {
-        use libfp::{Key, MidiNote};
-        use midly::num::u7;
-
-        use crate::tasks::global_config::get_global_config;
-
-        pub fn device_key() -> Key {
-            match get_global_config().quantizer.key {
-                Key::Off => Key::Chromatic,
-                k => k,
-            }
-        }
-
-        pub fn tonic_pc(follow: bool, local_root: MidiNote) -> u8 {
-            if follow {
-                get_global_config().quantizer.tonic as u8
-            } else {
-                u7::from(local_root).as_int() % 12
-            }
-        }
-    }
 
     pub const POOL_CAP: usize = 48;
 
@@ -1656,23 +1669,6 @@ mod contura_scales {
         out
     }
 
-    pub fn follow_mask_tonic(
-        follow_scale: bool,
-        follow_tonic: bool,
-        scale_set: usize,
-        base: MidiNote,
-    ) -> (u16, u8) {
-        let local = SCALE_MASKS[scale_set.min(SCALE_COUNT - 1)];
-        // Contura's scale sets are its own (Folk, Hexatonic …), so only the
-        // followed case can go through a plain Key.
-        let mask = if follow_scale {
-            follow_key::device_key().as_u16_key()
-        } else {
-            local
-        };
-        (mask, follow_key::tonic_pc(follow_tonic, base))
-    }
-
     pub fn build_pool(mask: u16, tonic: u8, base: u8, octaves: u8) -> Vec<u8, POOL_CAP> {
         let degrees = degrees_from_mask(mask);
         let lo = base;
@@ -1694,5 +1690,29 @@ mod contura_scales {
             let _ = pool.push(base.clamp(0, 127));
         }
         pool
+    }
+}
+
+mod follow_key {
+    use libfp::{Key, MidiNote};
+    use midly::num::u7;
+
+    use crate::app::Quantizer;
+
+    pub async fn device_key(quantizer: &Quantizer) -> Key {
+        let (key, _) = quantizer.get_scale().await;
+        match key {
+            Key::Off => Key::Chromatic,
+            k => k,
+        }
+    }
+
+    pub async fn tonic_pc(quantizer: &Quantizer, follow: bool, local_root: MidiNote) -> u8 {
+        if follow {
+            let (_, tonic) = quantizer.get_scale().await;
+            tonic as u8
+        } else {
+            u7::from(local_root).as_int() % 12
+        }
     }
 }
