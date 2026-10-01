@@ -124,5 +124,11 @@
     "module": "sift",
     "author": "thorinside",
     "version": "0.1.0"
+  },
+  {
+    "appId": 123,
+    "module": "semmy",
+    "author": "kosmar",
+    "version": "0.1.0"
   }
 ]
