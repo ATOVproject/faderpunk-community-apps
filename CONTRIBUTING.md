@@ -2,7 +2,7 @@
 
 > **Not open to the public yet.** This repo is private for now. The
 > mechanical checks below (scope, API boundary, panic/unsafe rules,
-> catalog validity, real solo-app compile) are live and run on every
+> catalog validity, real FPApp build) are live and run on every
 > PR — see `.github/workflows/pr-scope.yml` and `.github/scripts/`. The
 > AI first-pass review step isn't wired up yet (needs a provider/model +
 > API key decision first) — advisory only, not a blocker for opening this
@@ -42,7 +42,7 @@ A PR that only modifies one or more existing `apps/<name>.rs` files — a bug
 fix, or an API migration across several apps. It must not add, remove or
 rename an app, and must not touch `apps-catalog.json` or `manual-tab.json`;
 those changes go in their own PR. Every rule below still applies to each
-app it touches, and each one gets its own compile check.
+app it touches, and each one gets its own build check.
 
 ## What a version bump is
 
@@ -102,8 +102,9 @@ not committed; reviewed source remains the source of truth.
 
 Mechanical checks run first and catch most problems before a human looks:
 scope, API boundary, panic/unsafe rules, catalog validity, and a real
-solo-app compile against the actual `App<N>` API. An AI first-pass review
-runs next and flags anything those checks can't (misuse of the API that's
-technically within bounds, a manual entry that doesn't match the code).
+FPApp build of each touched app — the same `make fpapps` you run locally.
+An AI first-pass review runs next and flags anything those checks can't
+(misuse of the API that's technically within bounds, a manual entry that
+doesn't match the code).
 Both are filters, not the final word — a human maintainer always makes the
 actual merge decision.
