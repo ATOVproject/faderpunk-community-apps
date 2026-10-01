@@ -1,0 +1,26 @@
+@import "tailwindcss";
+@import "../.faderpunk/configurator/src/theme.css";
+
+/* Tailwind v4 scans these for class names. The manual components live in
+   the faderpunk checkout (reached through the .faderpunk symlink that
+   build.sh creates), so their classes have to be declared here or they'd
+   be tree-shaken out of the emitted CSS. */
+@source "./entry.tsx";
+@source "../.faderpunk/configurator/src/components/manual";
+@source "../.faderpunk/configurator/src/components/Icon.tsx";
+@source "../.faderpunk/configurator/src/utils/class-helpers.ts";
+
+/* VoxRound is a commercially licensed display face, licensed for the
+   Configurator's own deployment — not redistributable from this repo, so
+   build.sh ships only Barlow (SIL OFL) and this points --font-vox at it.
+   Only the "Channel N" and button labels use it; everything else was
+   already Barlow. */
+@theme {
+  --font-vox: "Barlow", sans-serif;
+}
+
+body {
+  background: var(--color-black);
+  color: var(--color-white);
+  font-family: var(--font-sans);
+}

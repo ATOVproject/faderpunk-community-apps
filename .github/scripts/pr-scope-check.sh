@@ -10,8 +10,17 @@
 #     "base_catalog": [ ...apps-catalog.json content on the base branch... ],
 #     "head_catalog": [ ...apps-catalog.json content on the PR head... ],
 #     "base_manual_tab": [ ...manual-tab.json content on the base branch... ],
-#     "head_manual_tab": [ ...manual-tab.json content on the PR head... ]
+#     "head_manual_tab": [ ...manual-tab.json content on the PR head... ],
+#     "head_sources": { "apps/<name>.rs": "...full file at the PR head...", ... }
 #   }
+#
+# `head_sources` is optional. Without it, the whole-file heuristics fall back
+# to the diff's added lines, which is the full file for a new app.
+#
+# Two PR scopes are recognised, decided from the file list:
+#   submission — adds exactly one new apps/<name>.rs, plus one new entry each
+#                in apps-catalog.json and manual-tab.json
+#   app fix    — modifies one or more existing apps/<name>.rs and nothing else
 #
 # Never checks out or executes submitted code — only inspects the diff
 # text and the two JSON data files, which is what makes this safe to run
@@ -23,6 +32,7 @@
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 FIXTURE="${1:?usage: pr-scope-check.sh <fixture.json>}"
 SUMMARY="${GITHUB_STEP_SUMMARY:-/dev/null}"
 
@@ -32,17 +42,38 @@ soft_flags=()
 hard_fail() { hard_fails+=("$1"); }
 soft_flag() { soft_flags+=("$1"); }
 
+# True (exit 0) if version $1 is strictly greater than $2, comparing
+# major.minor.patch numerically per component. Both must already be
+# validated as N.N.N by the caller — no format checking here.
+semver_gt() {
+  local IFS=.
+  local -a a=($1) b=($2)
+  for i in 0 1 2; do
+    if [ "${a[i]}" -gt "${b[i]}" ]; then return 0; fi
+    if [ "${a[i]}" -lt "${b[i]}" ]; then return 1; fi
+  done
+  return 1
+}
+
 # ---------------------------------------------------------------------------
 # 1. Path-scope check
 # ---------------------------------------------------------------------------
 
-app_files=$(jq -r '.files[] | select(.filename | test("^apps/[a-z][a-z0-9_]*\\.rs$")) | .filename' "$FIXTURE")
+app_re='^apps/[a-z][a-z0-9_]*\.rs$'
+app_files=$(jq -r --arg re "$app_re" '.files[] | select(.filename | test($re)) | .filename' "$FIXTURE")
+added_apps=$(jq -r --arg re "$app_re" '.files[] | select((.filename | test($re)) and .status == "added") | .filename' "$FIXTURE")
+modified_apps=$(jq -r --arg re "$app_re" '.files[] | select((.filename | test($re)) and .status == "modified") | .filename' "$FIXTURE")
+other_app_changes=$(jq -r --arg re "$app_re" '
+  .files[]
+  | select((.filename | test($re)) and .status != "added" and .status != "modified")
+  | "\(.filename) (\(.status))"
+' "$FIXTURE")
 catalog_files=$(jq -r '.files[] | select(.filename == "apps-catalog.json") | .filename' "$FIXTURE")
 manual_files=$(jq -r '.files[] | select(.filename == "manual-tab.json") | .filename' "$FIXTURE")
-other_files=$(jq -r '
+other_files=$(jq -r --arg re "$app_re" '
   .files[]
   | select(
-      (.filename | test("^apps/[a-z][a-z0-9_]*\\.rs$") | not)
+      (.filename | test($re) | not)
       and (.filename != "apps-catalog.json")
       and (.filename != "manual-tab.json")
     )
@@ -50,74 +81,130 @@ other_files=$(jq -r '
 ' "$FIXTURE")
 
 app_count=$(echo -n "$app_files" | grep -c . || true)
+added_count=$(echo -n "$added_apps" | grep -c . || true)
+modified_count=$(echo -n "$modified_apps" | grep -c . || true)
 catalog_count=$(echo -n "$catalog_files" | grep -c . || true)
 manual_count=$(echo -n "$manual_files" | grep -c . || true)
 
 if [ -n "$other_files" ]; then
   hard_fail "touches file(s) outside apps/, apps-catalog.json, and manual-tab.json: $(echo "$other_files" | tr '\n' ' ')"
 fi
-if [ "$app_count" -ne 1 ]; then
-  hard_fail "must add exactly one apps/<name>.rs file (found $app_count)"
-fi
-if [ "$catalog_count" -ne 1 ]; then
-  hard_fail "must modify apps-catalog.json exactly once (found $catalog_count)"
-fi
-if [ "$manual_count" -ne 1 ]; then
-  hard_fail "must modify manual-tab.json exactly once (found $manual_count)"
+if [ -n "$other_app_changes" ]; then
+  hard_fail "removes or renames app file(s): $(echo "$other_app_changes" | tr '\n' ' ')— app IDs are permanent and saved layouts reference them"
 fi
 
 module=""
-if [ "$app_count" -eq 1 ]; then
-  app_status=$(jq -r --arg f "$app_files" '.files[] | select(.filename == $f) | .status' "$FIXTURE")
-  [ "$app_status" = "added" ] || hard_fail "$app_files must be newly added, not modified"
-  module=$(basename "$app_files" .rs)
-fi
-
-# ---------------------------------------------------------------------------
-# 2. API-boundary, panic/unsafe checks (only meaningful once we have exactly
-#    one app file to look at)
-# ---------------------------------------------------------------------------
-
-if [ -n "$module" ]; then
-  patch=$(jq -r --arg f "$app_files" '.files[] | select(.filename == $f) | .patch // ""' "$FIXTURE")
-
-  if [ -z "$patch" ]; then
-    soft_flag "no patch available for apps/$module.rs (diff too large?) — needs manual review"
-  else
-    added=$(echo "$patch" | grep -E '^\+' | grep -vE '^\+\+\+' || true)
-
-    check_hard() {
-      local pattern="$1" reason="$2"
-      if echo "$added" | grep -qE "$pattern"; then
-        hard_fail "$reason"
-      fi
-    }
-
-    check_hard '\bunsafe\b' "uses \`unsafe\` — not permitted in community apps"
-    check_hard '\bpanic!\s*\(' "uses \`panic!()\` — the firmware halts the whole device on panic, not just this app"
-    check_hard '\bunreachable!\s*\(' "uses \`unreachable!()\` — same reason as panic!()"
-    check_hard '\btodo!\s*\(' "uses \`todo!()\` — same reason as panic!()"
-    check_hard 'crate::storage::' "imports crate::storage:: directly — must go through crate::app::{...} instead"
-    check_hard '\bMAX_CHANNEL\b|\bMaxCmd\b|\bMaxSender\b|crate::tasks::max' "reaches MAX11300 directly — must go through crate::app::{...} (make_in_jack/make_out_jack/etc.) instead"
-
-    # Busy-loop heuristic: known limitation, documented rather than hidden —
-    # flags any `loop {` when the added lines contain no `.await` anywhere,
-    # which can't distinguish "this specific loop never yields" from "some
-    # other loop in the same file does" without a real parse. Good enough
-    # to catch the common case (a file with one loop and no await at all).
-    if echo "$added" | grep -qE '\bloop\s*\{' && ! echo "$added" | grep -q '\.await'; then
-      hard_fail "contains a loop {} with no .await anywhere in the diff — Core 1 is cooperatively scheduled, an un-yielding loop starves every other app"
-    fi
-
-    if echo "$added" | grep -qE '\.unwrap\(\)|\.expect\('; then
-      # Soft-flag only if there's no same-line comment justifying it.
-      unjustified=$(echo "$added" | grep -E '\.unwrap\(\)|\.expect\(' | grep -v '//' || true)
-      if [ -n "$unjustified" ]; then
-        soft_flag "uses .unwrap()/.expect() without an adjacent justification comment — needs human judgment, not auto-rejected"
-      fi
-    fi
+checked_apps=""
+if [ "$added_count" -eq 0 ] && [ "$modified_count" -gt 0 ]; then
+  scope="app fix"
+  checked_apps="$modified_apps"
+  if [ "$catalog_count" -ne 0 ] || [ "$manual_count" -ne 0 ]; then
+    hard_fail "an app fix may only modify existing apps/<name>.rs files — apps-catalog.json and manual-tab.json changes need their own PR"
+  fi
+elif [ "$app_count" -eq 0 ] && [ "$catalog_count" -eq 1 ] && [ "$manual_count" -eq 0 ]; then
+  # No apps/*.rs touched at all, only apps-catalog.json — the shape a
+  # version bump takes (see the "version bump" catalog validation below).
+  # Anything else this shape could be (a catalog-only edit that isn't a
+  # clean single-field version bump) gets hard-failed there instead of
+  # here, so the one error message explains exactly what was wrong with
+  # the diff rather than just "wrong scope".
+  scope="version bump"
+else
+  scope="submission"
+  if [ "$app_count" -ne 1 ]; then
+    hard_fail "must add exactly one apps/<name>.rs file (found $app_count)"
+  fi
+  if [ "$catalog_count" -ne 1 ]; then
+    hard_fail "must modify apps-catalog.json exactly once (found $catalog_count)"
+  fi
+  if [ "$manual_count" -ne 1 ]; then
+    hard_fail "must modify manual-tab.json exactly once (found $manual_count)"
+  fi
+  # A removed or renamed app file has already hard-failed above.
+  if [ "$app_count" -eq 1 ] && [ "$added_count" -eq 1 ]; then
+    module=$(basename "$app_files" .rs)
+    checked_apps="$app_files"
   fi
 fi
+
+# ---------------------------------------------------------------------------
+# 2. API-boundary, panic/unsafe checks, run on every app file in scope
+# ---------------------------------------------------------------------------
+
+check_hard() {
+  local text="$1" pattern="$2" reason="$3"
+  if grep -qE "$pattern" <<<"$text"; then
+    hard_fail "$reason"
+  fi
+}
+
+check_app_source() {
+  local file="$1" patch added source boundary_violations added_file unjustified
+  patch=$(jq -r --arg f "$file" '.files[] | select(.filename == $f) | .patch // ""' "$FIXTURE")
+
+  if [ -z "$patch" ]; then
+    soft_flag "$file: no patch available (diff too large?) — needs manual review"
+    return
+  fi
+
+  added=$(grep -E '^\+' <<<"$patch" | grep -vE '^\+\+\+' || true)
+  # Whole-file heuristics need the whole file: an app fix's diff holds only
+  # the changed lines, so e.g. a new .add_param( would look handler-less.
+  source=$(jq -r --arg f "$file" '.head_sources[$f] // empty' "$FIXTURE")
+  [ -n "$source" ] || source="$added"
+
+  check_hard "$added" '\bunsafe\b' "$file: uses \`unsafe\` — not permitted in community apps"
+  check_hard "$added" '\bpanic!\s*\(' "$file: uses \`panic!()\` — the firmware halts the whole device on panic, not just this app"
+  check_hard "$added" '\bunreachable!\s*\(' "$file: uses \`unreachable!()\` — same reason as panic!()"
+  check_hard "$added" '\btodo!\s*\(' "$file: uses \`todo!()\` — same reason as panic!()"
+  check_hard "$added" '\bMAX_CHANNEL\b|\bMaxCmd\b|\bMaxSender\b' "$file: reaches MAX11300 symbols directly — must go through crate::app::{...} (make_in_jack/make_out_jack/etc.) instead"
+
+  # General API-boundary check: every crate::-rooted path — in `use`
+  # statements (including nested brace-lists like
+  # `use crate::{ app::{...}, storage::{...} }`, where the offending
+  # segment isn't textually adjacent to `crate::`) and in fully-qualified
+  # inline references (`crate::tasks::foo::bar()`) — must start with
+  # `crate::app`. Supersedes the old crate::storage::/crate::tasks::max
+  # line-regexes, which a brace-nested import could slip past; see
+  # crate-boundary-check.py's docstring for why a real (if small) parser
+  # is needed here instead of another regex.
+  added_file=$(mktemp)
+  printf '%s\n' "$added" > "$added_file"
+  boundary_violations=$(python3 "$SCRIPT_DIR/crate-boundary-check.py" "$added_file")
+  rm -f "$added_file"
+  if [ -n "$boundary_violations" ]; then
+    while IFS= read -r v; do
+      hard_fail "$file: imports \`$v\` directly — must go through crate::app::{...} instead"
+    done <<<"$boundary_violations"
+  fi
+
+  # Busy-loop heuristic: known limitation, documented rather than hidden —
+  # flags any `loop {` when the file contains no `.await` anywhere, which
+  # can't distinguish "this specific loop never yields" from "some other
+  # loop in the same file does" without a real parse. Good enough to catch
+  # the common case (a file with one loop and no await at all).
+  if grep -qE '\bloop\s*\{' <<<"$source" && ! grep -q '\.await' <<<"$source"; then
+    hard_fail "$file: contains a loop {} with no .await anywhere in the file — Core 1 is cooperatively scheduled, an un-yielding loop starves every other app"
+  fi
+
+  # Declared params are only reachable through ParamStore::param_handler():
+  # without it the app never answers the Configurator's param request, so
+  # its params can't be shown or changed and stay at the compiled-in
+  # defaults. Same whole-file text heuristic as the busy-loop check.
+  if grep -qE '\.add_param\s*\(' <<<"$source" && ! grep -qE '\bparam_handler\s*\(' <<<"$source"; then
+    hard_fail "$file: declares parameters (.add_param) but never runs ParamStore::param_handler() — the Configurator can't read or change them"
+  fi
+
+  # Soft-flag only if there's no same-line comment justifying it.
+  unjustified=$(grep -E '\.unwrap\(\)|\.expect\(' <<<"$added" | grep -v '//' || true)
+  if [ -n "$unjustified" ]; then
+    soft_flag "$file: uses .unwrap()/.expect() without an adjacent justification comment — needs human judgment, not auto-rejected"
+  fi
+}
+
+while IFS= read -r file; do
+  [ -n "$file" ] && check_app_source "$file"
+done <<<"$checked_apps"
 
 # ---------------------------------------------------------------------------
 # 3. Catalog validation — appends-only, exactly one new entry
@@ -146,9 +233,11 @@ if [ -n "$module" ]; then
     entry_module=$(echo "$entry" | jq -r '.module // empty')
     entry_author=$(echo "$entry" | jq -r '.author // empty')
     entry_id=$(echo "$entry" | jq -r '.appId // empty')
+    entry_version=$(echo "$entry" | jq -r '.version // empty')
 
     [ "$entry_module" = "$module" ] || hard_fail "apps-catalog.json entry's module ('$entry_module') doesn't match the submitted app ('$module')"
     [ -n "$entry_author" ] || hard_fail "apps-catalog.json entry is missing an author"
+    [[ "$entry_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || hard_fail "apps-catalog.json entry's version ('$entry_version') is not plain major.minor.patch"
 
     if ! [[ "$entry_id" =~ ^[0-9]+$ ]]; then
       hard_fail "apps-catalog.json entry's appId is not a plain integer"
@@ -161,6 +250,52 @@ if [ -n "$module" ]; then
       else
         hard_fail "apps-catalog.json entry's appId ($entry_id) is already taken"
       fi
+    fi
+  fi
+fi
+
+# ---------------------------------------------------------------------------
+# 3b. Catalog validation — version bump scope: exactly one existing entry
+#     changed, only its `version` field, strictly increasing.
+# ---------------------------------------------------------------------------
+
+if [ "$scope" = "version bump" ]; then
+  base_catalog=$(jq -c '.base_catalog' "$FIXTURE")
+  head_catalog=$(jq -c '.head_catalog' "$FIXTURE")
+
+  base_count=$(echo "$base_catalog" | jq 'length')
+  head_count=$(echo "$head_catalog" | jq 'length')
+
+  removed=$(jq -c -n --argjson base "$base_catalog" --argjson head "$head_catalog" \
+    '[$base[] | select(. as $b | ($head | index($b)) == null)]')
+  added=$(jq -c -n --argjson base "$base_catalog" --argjson head "$head_catalog" \
+    '[$head[] | select(. as $h | ($base | index($h)) == null)]')
+  removed_count=$(echo "$removed" | jq 'length')
+  added_count_catalog=$(echo "$added" | jq 'length')
+
+  if [ "$base_count" -ne "$head_count" ]; then
+    hard_fail "apps-catalog.json: a version bump may only change one existing entry, not add or remove entries (had $base_count, now $head_count)"
+  elif [ "$removed_count" -ne 1 ] || [ "$added_count_catalog" -ne 1 ]; then
+    hard_fail "apps-catalog.json: must change exactly one existing entry (found $removed_count changed)"
+  else
+    old_entry=$(echo "$removed" | jq -c '.[0]')
+    new_entry=$(echo "$added" | jq -c '.[0]')
+    old_id=$(echo "$old_entry" | jq -r '.appId')
+    new_id=$(echo "$new_entry" | jq -r '.appId')
+    old_version=$(echo "$old_entry" | jq -r '.version // empty')
+    new_version=$(echo "$new_entry" | jq -r '.version // empty')
+
+    same_except_version=$(jq -n --argjson a "$old_entry" --argjson b "$new_entry" \
+      '(($a | del(.version)) == ($b | del(.version)))')
+
+    if [ "$old_id" != "$new_id" ]; then
+      hard_fail "apps-catalog.json: the changed entry's appId must not change ($old_id -> $new_id)"
+    elif [ "$same_except_version" != "true" ]; then
+      hard_fail "apps-catalog.json: a version bump may only change the 'version' field — module/author/appId must stay identical"
+    elif ! [[ "$new_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+      hard_fail "apps-catalog.json: new version ('$new_version') is not plain major.minor.patch"
+    elif ! semver_gt "$new_version" "$old_version"; then
+      hard_fail "apps-catalog.json: new version ('$new_version') must be strictly greater than the previous version ('$old_version')"
     fi
   fi
 fi
@@ -223,6 +358,8 @@ fi
 
 {
   echo "## Community app submission scope check"
+  echo
+  echo "Scope: **$scope**"
   echo
   if [ ${#hard_fails[@]} -eq 0 ]; then
     echo "**No hard-fails.**"

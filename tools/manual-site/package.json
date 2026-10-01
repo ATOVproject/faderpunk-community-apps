@@ -1,0 +1,25 @@
+{
+  "name": "faderpunk-community-manual-site",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.32.1",
+  "description": "Static Community App Catalogue site. Renders manual-tab.json through the real Configurator manual components from a sibling faderpunk checkout, so the community catalogue looks identical to the in-app manual without maintaining a second renderer. See build.sh.",
+  "scripts": {
+    "build": "./build.sh"
+  },
+  "dependencies": {
+    "classnames": "^2.5.1",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1",
+    "react-markdown": "^10.1.0",
+    "react-router-dom": "^7.9.3"
+  },
+  "devDependencies": {
+    "@tailwindcss/cli": "^4.1.11",
+    "@types/react": "^19.1.9",
+    "@types/react-dom": "^19.1.7",
+    "tailwindcss": "^4.1.11",
+    "typescript": "~5.8.3",
+    "vite": "^7.3.5"
+  }
+}
