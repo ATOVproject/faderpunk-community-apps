@@ -3,9 +3,19 @@ name: Community app submission check
 # First-pass gate for PRs, cheapest checks first — see CONTRIBUTING.md
 # "The rules". `pull_request` (not `pull_request_target`), read-only
 # permissions: safe to run on forked-repo PRs with the default GITHUB_TOKEN,
-# no secrets ever exposed to submitted code. Neither job checks out the
-# fork's tree wholesale — everything is fetched file-by-file via the GitHub
-# API, so submitted code is inspected as text, never executed by CI.
+# no secrets ever exposed to submitted code. No job checks out the fork's
+# tree wholesale — everything is fetched file-by-file via the GitHub API.
+#
+# scope-check and manual-check only inspect submitted files as text.
+# build-check deliberately runs submitted code: it packages each touched
+# app with the same FPApp builder the downloads site uses after merge,
+# which compiles a small host program from the app and runs it to read the
+# app's CONFIG. That moves anything the downloads build would reject to
+# before the merge instead of after it. It stays contained by the points
+# above — read-only token, no secrets — and only runs once scope-check has
+# passed. Keep the repo's Actions setting that requires approval before
+# workflows run on fork PRs (Settings > Actions > General), so a maintainer
+# sees a new contributor's code before any of it runs.
 
 on:
   pull_request:
@@ -59,7 +69,7 @@ jobs:
 
       # The diff alone isn't enough for the whole-file checks (busy-loop,
       # param handler): an app fix's patch holds only the changed lines.
-      # Fetched as text, same as everything else here -- never executed.
+      # Fetched as text -- this job never executes it.
       - name: Fetch the full head source of every touched app
         run: |
           head_sha="${{ github.event.pull_request.head.sha }}"
@@ -108,7 +118,9 @@ jobs:
 
   build-check:
     needs: scope-check
-    if: needs.scope-check.outputs.passed == 'true'
+    # A version bump touches no apps/*.rs, so there's nothing to build — and
+    # GitHub fails a job whose matrix is empty instead of skipping it.
+    if: needs.scope-check.outputs.passed == 'true' && needs.scope-check.outputs.modules != '[]'
     runs-on: ubuntu-latest
     # One build per touched app, so an app fix spanning several apps checks
     # each of them rather than only the first.
@@ -122,23 +134,38 @@ jobs:
       - name: Checkout (this repo's own scripts, not the fork's changes)
         uses: actions/checkout@v4
 
-      - name: Fetch the app's file content
+      - name: Fetch the app's file, catalog and manual from the PR head
         run: |
           module="${{ matrix.module }}"
           head_sha="${{ github.event.pull_request.head.sha }}"
           gh api "repos/${{ github.repository }}/contents/apps/$module.rs?ref=$head_sha" \
             --jq '.content' | base64 -d > "$module.rs"
+          gh api "repos/${{ github.repository }}/contents/apps-catalog.json?ref=$head_sha" \
+            --jq '.content' | base64 -d > head-catalog.json
+          gh api "repos/${{ github.repository }}/contents/manual-tab.json?ref=$head_sha" \
+            --jq '.content' | base64 -d > head-manual-tab.json
+
+      # Same toolchain as manual-pages.yml's .fpapp build: nightly first,
+      # stable second so stable ends up the default (fpapp's own build needs
+      # that; only its native-crate step selects +nightly itself).
+      - uses: dtolnay/rust-toolchain@nightly
+        with:
+          targets: thumbv8m.main-none-eabihf
+          components: rust-src
 
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: thumbv8m.main-none-eabihf
 
-      - run: cargo install flip-link
+      # fpapp shells out to arm-none-eabi-readelf to extract ABI info from
+      # each built native image — not on the runner by default.
+      - name: Install ARM binutils
+        run: sudo apt-get update && sudo apt-get install -y binutils-arm-none-eabi
 
-      - name: Compile check (clone faderpunk, inject alongside every factory app, build)
+      - name: Build the app as an installable FPApp (clone faderpunk, make fpapps)
         run: |
           module="${{ matrix.module }}"
-          .github/scripts/pr-build-check.sh "$module.rs" "$module"
+          .github/scripts/pr-build-check.sh "$module.rs" "$module" head-catalog.json head-manual-tab.json
 
   manual-check:
     needs: scope-check
