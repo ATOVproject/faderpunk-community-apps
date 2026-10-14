@@ -388,10 +388,18 @@ pub async fn run(
                 s.alt[chan] = 0;
                 s.third[chan] = 0;
             });
+            // Local CC is rate-limited (~8 ms gap in midi_distributor); burst
+            // try_sends would drop Alt/Third. Space the three zeros.
             if midi_out.is_some() {
-                for layer in [LatchLayer::Main, LatchLayer::Alt, LatchLayer::Third] {
+                for (i, layer) in [LatchLayer::Main, LatchLayer::Alt, LatchLayer::Third]
+                    .into_iter()
+                    .enumerate()
+                {
                     let cc = params.query(|p| p.cc_for_layer(layer, chan));
                     midi.send_cc(cc, 0).await;
+                    if i < 2 {
+                        app.delay_millis(10).await;
+                    }
                 }
             }
         }
