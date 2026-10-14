@@ -218,11 +218,12 @@ fn value_for(storage: &Storage, layer: LatchLayer, ch: usize) -> u16 {
 }
 
 /// Per-channel latch: Shift → Alt (all), hold that channel’s button → Third (only that ch).
+/// Shift and button work in parallel: button → Third on that channel; else Shift → Alt.
 fn layer_for_channel(shift: bool, button: bool) -> LatchLayer {
-    if shift && !button {
-        LatchLayer::Alt
-    } else if !shift && button {
+    if button {
         LatchLayer::Third
+    } else if shift {
+        LatchLayer::Alt
     } else {
         LatchLayer::Main
     }
