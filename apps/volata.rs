@@ -7,17 +7,18 @@ use embassy_futures::{
 use embassy_sync::{blocking_mutex::raw::NoopRawMutex, signal::Signal};
 use heapless::Vec;
 use libfp::{
-    APP_MAX_PARAMS, AppIcon, Brightness, ClockDivision, Color, Config, Key, MidiChannel, MidiNote,
-    MidiOut, Note, Param, Range, Value, VoltPerOct, ext::FromValue, latch::LatchLayer,
+    ext::FromValue,
+    latch::LatchLayer,
     quantizer::Pitch,
     utils::{attenuate_bipolar, split_unsigned_value},
+    AppIcon, Brightness, Color, Config, Key, MidiChannel, MidiNote, MidiOut, Note, Param, Range,
+    Value, VoltPerOct, APP_MAX_PARAMS,
 };
 use midly::num::u7;
 use serde::{Deserialize, Serialize};
 
 use crate::app::{
-    App, AppParams, AppStorage, ClockEvent, Die, Led, ManagedStorage, ParamStore, SceneEvent,
-    pitch_as_counts,
+    pitch_as_counts, App, AppParams, AppStorage, Die, Led, ManagedStorage, ParamStore, SceneEvent,
 };
 
 pub const CHANNELS: usize = 2;
@@ -747,7 +748,11 @@ fn note_to_pitch(note: u8) -> Pitch {
 fn cycle_scale_idx(idx: u8, reverse: bool) -> u8 {
     let max = KEY_CYCLE.len() as u8;
     if reverse {
-        if idx == 0 { max - 1 } else { idx - 1 }
+        if idx == 0 {
+            max - 1
+        } else {
+            idx - 1
+        }
     } else if idx + 1 >= max {
         0
     } else {
@@ -823,7 +828,7 @@ pub async fn wrapper(app: App<CHANNELS>, exit_signal: &'static Signal<NoopRawMut
     storage.load().await;
 
     let app_loop = async {
-        while true {
+        loop {
             select3(
                 run(&app, &param_store, &storage),
                 param_store.param_handler(),
@@ -875,15 +880,10 @@ pub async fn run(
     let faders = app.use_faders();
     let buttons = app.use_buttons();
     let leds = app.use_leds();
-    let mut clk = app.use_clock();
     let die = app.use_die();
     let quantizer = app.use_quantizer(range, vpo, false);
     let midi = app.use_midi_output(midi_out, midi_chan, false);
 
-    let glob_ticks = app.make_global(0u64);
-    let glob_running = app.make_global(false);
-    let glob_stop = app.make_global(false);
-    let glob_reset = app.make_global(false);
     let glob_latch_layer = app.make_global(LatchLayer::Main);
     let glob_muted = app.make_global(storage.query(|s| s.muted));
     let glob_cv_val = app.make_global(2047u16);
@@ -931,27 +931,6 @@ pub async fn run(
     }
     let _ = (main_saved, alt_saved, third_saved, voicing);
 
-    let clock_drain = async {
-        while true {
-            match clk.wait_for_event(ClockDivision::_1).await {
-                ClockEvent::Tick(tick) => {
-                    glob_ticks.set(tick);
-                    glob_running.set(true);
-                    glob_stop.set(false);
-                }
-                ClockEvent::Stop => {
-                    glob_running.set(false);
-                    glob_stop.set(true);
-                }
-                ClockEvent::Reset => {
-                    glob_reset.set(true);
-                    glob_ticks.set(0);
-                }
-                _ => {}
-            }
-        }
-    };
-
     let fut_engine = async {
         let mut burst_notes = [60u8; MAX_BURST];
         let mut burst_durs = [1u8; MAX_BURST];
@@ -967,27 +946,38 @@ pub async fn run(
         let mut gate_open = false;
         let mut free_ms_acc: u64 = 0;
         let mut free_gate_remain: u64 = 0;
+        let mut was_clock_running = app.is_clock_running();
+        let mut prev_tick: Option<u64> = app.current_tick();
 
-        while true {
+        loop {
             app.delay_millis(1).await;
 
-            if glob_muted.get() || glob_stop.get() || glob_reset.get() {
+            let clock_running = app.is_clock_running();
+            let tick_opt = app.current_tick();
+            // Treat "running but no tick yet" like pre-first-Tick (matches Start
+            // clearing CURRENT_TICK to None before the first Pulse).
+            let running = clock_running && tick_opt.is_some();
+            let tick = tick_opt.unwrap_or(0);
+
+            let stopped = was_clock_running && !clock_running;
+            let reset = match (prev_tick, tick_opt) {
+                (Some(_), None) => true,
+                (Some(a), Some(b)) if b < a => true,
+                _ => false,
+            };
+            was_clock_running = clock_running;
+            prev_tick = tick_opt;
+
+            if glob_muted.get() || stopped || reset {
                 pending_silence.set(true);
                 burst_active = false;
                 gate_open = false;
                 glob_gate_on.set(false);
                 free_gate_remain = 0;
-                if glob_reset.get() {
-                    glob_reset.set(false);
+                if reset {
                     slots_since_burst = u16::MAX;
                 }
-                if glob_stop.get() {
-                    glob_stop.set(false);
-                }
             }
-
-            let running = glob_running.get();
-            let tick = glob_ticks.get();
 
             let cv = glob_cv_val.get();
             let length_fader = match cv_dest {
@@ -1135,7 +1125,7 @@ pub async fn run(
 
     let fut_voice = async {
         let mut note_on: Option<MidiNote> = None;
-        while true {
+        loop {
             app.delay_millis(1).await;
 
             if pending_silence.get() {
@@ -1178,7 +1168,7 @@ pub async fn run(
             app.make_latch(faders.get_value_at(0)),
             app.make_latch(faders.get_value_at(1)),
         ];
-        while true {
+        loop {
             let chan = faders.wait_for_any_change().await;
             let layer = glob_latch_layer.get();
             let target = match (chan, layer) {
@@ -1206,7 +1196,7 @@ pub async fn run(
     };
 
     let button_handler = async {
-        while true {
+        loop {
             let (chan, shift) = buttons.wait_for_any_down().await;
             long_press_fired.set(false);
             fader_moved_during_press.set(false);
@@ -1239,7 +1229,7 @@ pub async fn run(
     };
 
     let long_press_handler = async {
-        while true {
+        loop {
             let (chan, shift) = buttons.wait_for_any_long_press().await;
             long_press_fired.set(true);
             if fader_moved_during_press.get() {
@@ -1268,7 +1258,7 @@ pub async fn run(
     };
 
     let led_handler = async {
-        while true {
+        loop {
             app.delay_millis(8).await;
             let layer = if buttons.is_shift_pressed() && !buttons.is_button_pressed(0) {
                 LatchLayer::Alt
@@ -1354,7 +1344,7 @@ pub async fn run(
     };
 
     let cv_handler = async {
-        while true {
+        loop {
             app.delay_millis(1).await;
             let in_val = attenuate_bipolar(cv_in.get_value(), cv_att);
             glob_cv_val.set(in_val);
@@ -1362,7 +1352,7 @@ pub async fn run(
     };
 
     let scene_handler = async {
-        while true {
+        loop {
             match app.wait_for_scene_event().await {
                 SceneEvent::LoadScene(scene) => {
                     storage.load_from_scene(scene).await;
@@ -1383,15 +1373,12 @@ pub async fn run(
         }
     };
 
-    join(
-        clock_drain,
-        join5(
-            join(fut_engine, fut_voice),
-            fader_handler,
-            join(button_handler, long_press_handler),
-            join(led_handler, cv_handler),
-            scene_handler,
-        ),
+    join5(
+        join(fut_engine, fut_voice),
+        fader_handler,
+        join(button_handler, long_press_handler),
+        join(led_handler, cv_handler),
+        scene_handler,
     )
     .await;
 }
