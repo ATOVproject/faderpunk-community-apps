@@ -294,10 +294,15 @@ fn hsv_to_rgb(h: f32, s: f32, v: f32) -> (u8, u8, u8) {
         (c, 0.0, x)
     };
     (
-        ((rp + m) * 255.0).round().clamp(0.0, 255.0) as u8,
-        ((gp + m) * 255.0).round().clamp(0.0, 255.0) as u8,
-        ((bp + m) * 255.0).round().clamp(0.0, 255.0) as u8,
+        f32_to_u8_color((rp + m) * 255.0),
+        f32_to_u8_color((gp + m) * 255.0),
+        f32_to_u8_color((bp + m) * 255.0),
     )
+}
+
+fn f32_to_u8_color(x: f32) -> u8 {
+    let x = x.clamp(0.0, 255.0);
+    (x + 0.5) as u8
 }
 
 #[embassy_executor::task(pool_size = 16 / CHANNELS)]
