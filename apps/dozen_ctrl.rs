@@ -59,7 +59,7 @@ pub const DEFAULT_CCS: [[u8; 12]; DEVICE_COUNT] = [
 ];
 
 use embassy_futures::{
-    join::join4,
+    join::{join, join5},
     select::{select, select3},
 };
 use embassy_sync::{blocking_mutex::raw::NoopRawMutex, signal::Signal};
@@ -77,6 +77,8 @@ use crate::app::{App, AppParams, AppStorage, Led, ManagedStorage, ParamStore, Sc
 
 pub const CHANNELS: usize = 4;
 pub const PARAMS: usize = 16;
+
+const RESET_FADER_DEADBAND: u16 = 32;
 
 pub static CONFIG: Config<PARAMS> = Config::new(
     "Dozen Ctrl",
@@ -217,8 +219,9 @@ fn value_for(storage: &Storage, layer: LatchLayer, ch: usize) -> u16 {
     }
 }
 
-/// Per-channel latch: Shift → Alt (all), hold that channel’s button → Third (only that ch).
-/// Shift and button work in parallel: button → Third on that channel; else Shift → Alt.
+/// Per-channel latch — Shift and button work in parallel:
+/// button hold → Third on that channel; else Shift → Alt; else Main.
+/// Shift + channel button short tap (no fader move) resets Main, Alt, and Third for that channel.
 fn layer_for_channel(shift: bool, button: bool) -> LatchLayer {
     if button {
         LatchLayer::Third
@@ -290,6 +293,7 @@ pub async fn run(
     let leds = app.use_leds();
 
     let layers_glob = app.make_global([LatchLayer::Main; CHANNELS]);
+    let long_press_fired = app.make_global(false);
 
     let midi_task = async {
         let mut last_gate = [u32::MAX; 4];
@@ -363,6 +367,43 @@ pub async fn run(
         }
     };
 
+    let reset_task = async {
+        loop {
+            let (chan, shift) = buttons.wait_for_any_down().await;
+            if !shift {
+                continue;
+            }
+            let fader_at_down = faders.get_value_at(chan);
+            long_press_fired.set(false);
+            buttons.wait_for_up(chan).await;
+            if long_press_fired.get() {
+                continue;
+            }
+            let fader_now = faders.get_value_at(chan);
+            if fader_at_down.abs_diff(fader_now) > RESET_FADER_DEADBAND {
+                continue;
+            }
+            storage.modify_and_save(|s| {
+                s.main[chan] = 0;
+                s.alt[chan] = 0;
+                s.third[chan] = 0;
+            });
+            if midi_out.is_some() {
+                for layer in [LatchLayer::Main, LatchLayer::Alt, LatchLayer::Third] {
+                    let cc = params.query(|p| p.cc_for_layer(layer, chan));
+                    midi.send_cc(cc, 0).await;
+                }
+            }
+        }
+    };
+
+    let long_press_task = async {
+        loop {
+            buttons.wait_for_any_long_press().await;
+            long_press_fired.set(true);
+        }
+    };
+
     let scene_handler = async {
         loop {
             match app.wait_for_scene_event().await {
@@ -372,5 +413,9 @@ pub async fn run(
         }
     };
 
-    join4(midi_task, layer_task, fader_task, scene_handler).await;
+    join(
+        long_press_task,
+        join5(midi_task, layer_task, fader_task, reset_task, scene_handler),
+    )
+    .await;
 }

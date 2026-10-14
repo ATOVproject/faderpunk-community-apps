@@ -1180,7 +1180,7 @@
     "description": "4x3 latched MIDI CC expander for one synth",
     "icon": "fader",
     "color": "cyan",
-    "text": "Dozen Ctrl maps four faders across three latch layers to twelve MIDI CCs on a single channel. **Main** uses M1–M4. **Shift** → **Alt** on channels without a held button (A1–A4, orange Top/Bottom). **Hold a channel’s button** → **Third** on that channel (T1–T4, violet); works in parallel with Shift on the other channels. Pick a **Device** (23 synths/drums) to load suggested CC defaults; full maps live in Faderpunk’s `device-cc-catalog.json`. **Color** sets the button LED hue; button brightness follows the latched value on the active layer (val/16). Top/Bottom LEDs use the layer accent at fader split brightness. Values latch per layer and persist in scenes.",
+    "text": "Dozen Ctrl maps four faders across three latch layers to twelve MIDI CCs on a single channel. **Main** uses M1–M4. **Shift** → **Alt** on channels without a held button (A1–A4, orange Top/Bottom). **Hold a channel’s button** → **Third** on that channel (T1–T4, violet); works in parallel with Shift on the other channels. **Shift + channel button short tap** (no fader move) resets that channel’s Main, Alt, and Third to 0 and sends CC 0 on all three slots when MIDI Out is set. Pick a **Device** (23 synths/drums) to load suggested CC defaults; full maps live in Faderpunk’s `device-cc-catalog.json`. **Color** sets the button LED hue; button brightness follows the latched value on the active layer (val/16). Top/Bottom LEDs use the layer accent at fader split brightness. Values latch per layer and persist in scenes.",
     "channels": [
       {
         "faderTitle": "CC fader",
