@@ -72,6 +72,7 @@ use libfp::{
     APP_MAX_PARAMS,
 };
 use serde::{Deserialize, Serialize};
+use smart_leds::RGB8;
 
 use crate::app::{App, AppParams, AppStorage, Led, ManagedStorage, ParamStore, SceneEvent};
 
@@ -235,9 +236,68 @@ fn layer_for_channel(shift: bool, button: bool) -> LatchLayer {
 fn layer_accent(layer: LatchLayer, color: Color) -> Color {
     match layer {
         LatchLayer::Main => color,
-        LatchLayer::Alt => Color::Orange,
-        LatchLayer::Third => Color::Violet,
+        LatchLayer::Alt => shift_hue(color, 20),
+        LatchLayer::Third => shift_hue(color, -20),
     }
+}
+
+/// Rotate hue of a palette/Custom color by `degrees` (−360…360), keep S/V.
+fn shift_hue(color: Color, degrees: i16) -> Color {
+    let RGB8 { r, g, b } = RGB8::from(color);
+    let (h, s, v) = rgb_to_hsv(r, g, b);
+    if s < 0.05 {
+        // Near-grey: hue is undefined — slight sat so ±shift is visible.
+        let h0 = if h.is_nan() { 0.0 } else { h };
+        let (nr, ng, nb) = hsv_to_rgb((h0 + degrees as f32).rem_euclid(360.0), 0.35, v.max(0.2));
+        return Color::Custom(nr, ng, nb);
+    }
+    let (nr, ng, nb) = hsv_to_rgb((h + degrees as f32).rem_euclid(360.0), s, v);
+    Color::Custom(nr, ng, nb)
+}
+
+fn rgb_to_hsv(r: u8, g: u8, b: u8) -> (f32, f32, f32) {
+    let rf = r as f32 / 255.0;
+    let gf = g as f32 / 255.0;
+    let bf = b as f32 / 255.0;
+    let max = rf.max(gf).max(bf);
+    let min = rf.min(gf).min(bf);
+    let d = max - min;
+    let v = max;
+    let s = if max <= 0.0 { 0.0 } else { d / max };
+    let h = if d <= 1e-6 {
+        f32::NAN
+    } else if max == rf {
+        60.0 * ((gf - bf) / d).rem_euclid(6.0)
+    } else if max == gf {
+        60.0 * (((bf - rf) / d) + 2.0)
+    } else {
+        60.0 * (((rf - gf) / d) + 4.0)
+    };
+    (h, s, v)
+}
+
+fn hsv_to_rgb(h: f32, s: f32, v: f32) -> (u8, u8, u8) {
+    let c = v * s;
+    let x = c * (1.0 - ((h / 60.0).rem_euclid(2.0) - 1.0).abs());
+    let m = v - c;
+    let (rp, gp, bp) = if h < 60.0 {
+        (c, x, 0.0)
+    } else if h < 120.0 {
+        (x, c, 0.0)
+    } else if h < 180.0 {
+        (0.0, c, x)
+    } else if h < 240.0 {
+        (0.0, x, c)
+    } else if h < 300.0 {
+        (x, 0.0, c)
+    } else {
+        (c, 0.0, x)
+    };
+    (
+        ((rp + m) * 255.0).round().clamp(0.0, 255.0) as u8,
+        ((gp + m) * 255.0).round().clamp(0.0, 255.0) as u8,
+        ((bp + m) * 255.0).round().clamp(0.0, 255.0) as u8,
+    )
 }
 
 #[embassy_executor::task(pool_size = 16 / CHANNELS)]
