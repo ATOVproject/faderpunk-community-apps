@@ -64,11 +64,12 @@ use embassy_futures::{
 };
 use embassy_sync::{blocking_mutex::raw::NoopRawMutex, signal::Signal};
 use heapless::Vec;
+use embassy_time::{Duration, Instant};
 use libfp::{
     ext::FromValue,
     latch::LatchLayer,
     utils::{midi_gate, split_unsigned_value},
-    AppIcon, Brightness, Color, Config, MidiCc, MidiChannel, MidiOut, Param, Value,
+    AppIcon, Brightness, Color, Config, MidiCc, MidiChannel, MidiOut, Param, Range, Value,
     APP_MAX_PARAMS,
 };
 use serde::{Deserialize, Serialize};
@@ -80,6 +81,7 @@ pub const CHANNELS: usize = 4;
 pub const PARAMS: usize = 16;
 
 const RESET_FADER_DEADBAND: u16 = 32;
+const DEST_FLASH_MS: u64 = 300;
 
 pub static CONFIG: Config<PARAMS> = Config::new(
     "Dozen Ctrl",
@@ -197,6 +199,8 @@ pub struct Storage {
     main: [u16; 4],
     alt: [u16; 4],
     third: [u16; 4],
+    #[serde(default)]
+    cv_dest: [LatchLayer; 4],
 }
 
 impl Default for Storage {
@@ -205,6 +209,7 @@ impl Default for Storage {
             main: [4095, 4095, 4095, 4095],
             alt: [4095, 4095, 4095, 4095],
             third: [4095, 4095, 4095, 4095],
+            cv_dest: [LatchLayer::Main; 4],
         }
     }
 }
@@ -220,11 +225,23 @@ fn value_for(storage: &Storage, layer: LatchLayer, ch: usize) -> u16 {
     }
 }
 
-/// Per-channel latch — Shift and button work in parallel:
-/// button hold → Third on that channel; else Shift → Alt; else Main.
+/// UI latch layer is global: any held channel button → Third on all four channels;
+/// else Shift → Alt; else Main.
 /// Shift + channel button short tap (no fader move) resets Main, Alt, and Third for that channel.
-fn layer_for_channel(shift: bool, button: bool) -> LatchLayer {
-    if button {
+fn mod_with_input(base: u16, in_val: u16) -> u16 {
+    (base as i32 + in_val as i32 - 2047).clamp(0, 4095) as u16
+}
+
+fn cycle_cv_dest(layer: LatchLayer) -> LatchLayer {
+    match layer {
+        LatchLayer::Main => LatchLayer::Alt,
+        LatchLayer::Alt => LatchLayer::Third,
+        LatchLayer::Third => LatchLayer::Main,
+    }
+}
+
+fn ui_latch_layer(shift: bool, any_button: bool) -> LatchLayer {
+    if any_button {
         LatchLayer::Third
     } else if shift {
         LatchLayer::Alt
@@ -361,6 +378,13 @@ pub async fn run(
     let buttons = app.use_buttons();
     let leds = app.use_leds();
 
+    let cv_in = [
+        app.make_in_jack(0, Range::_Neg5_5V).await,
+        app.make_in_jack(1, Range::_Neg5_5V).await,
+        app.make_in_jack(2, Range::_Neg5_5V).await,
+        app.make_in_jack(3, Range::_Neg5_5V).await,
+    ];
+
     let layers_glob = app.make_global([LatchLayer::Main; CHANNELS]);
     let long_press_fired = app.make_global(false);
     let latches_glob = app.make_global([
@@ -369,7 +393,9 @@ pub async fn run(
         app.make_latch(faders.get_value_at(2)),
         app.make_latch(faders.get_value_at(3)),
     ]);
-    let last_gate_glob = app.make_global([u32::MAX; CHANNELS]);
+    let last_dest_gate_glob = app.make_global([u32::MAX; CHANNELS]);
+    let last_ui_gate_glob = app.make_global([u32::MAX; CHANNELS]);
+    let dest_flash_until_glob = app.make_global([Instant::from_ticks(0); CHANNELS]);
 
     let midi_task = async {
         loop {
@@ -378,18 +404,37 @@ pub async fn run(
                 continue;
             }
             let layers = layers_glob.get();
-            let mut last_gate = last_gate_glob.get();
+            let mut last_dest = last_dest_gate_glob.get();
+            let mut last_ui = last_ui_gate_glob.get();
             for fader in 0..CHANNELS {
-                let layer = layers[fader];
-                let val = storage.query(|s| value_for(s, layer, fader));
-                let cc = params.query(|p| p.cc_for_layer(layer, fader));
-                let gate = midi_gate(val, false) as u32;
-                if gate != last_gate[fader] {
-                    midi.send_cc(cc, val).await;
-                    last_gate[fader] = gate;
+                let ui_layer = layers[fader];
+                let (dest_layer, dest_base) = storage.query(|s| {
+                    let dest = s.cv_dest[fader];
+                    (dest, value_for(s, dest, fader))
+                });
+                let cv = cv_in[fader].get_value();
+                let dest_val = mod_with_input(dest_base, cv);
+                let dest_cc = params.query(|p| p.cc_for_layer(dest_layer, fader));
+                let dest_gate = midi_gate(dest_val, false) as u32;
+                if dest_gate != last_dest[fader] {
+                    midi.send_cc(dest_cc, dest_val).await;
+                    last_dest[fader] = dest_gate;
+                }
+
+                if ui_layer != dest_layer {
+                    let ui_val = storage.query(|s| value_for(s, ui_layer, fader));
+                    let ui_cc = params.query(|p| p.cc_for_layer(ui_layer, fader));
+                    let ui_gate = midi_gate(ui_val, false) as u32;
+                    if ui_gate != last_ui[fader] {
+                        midi.send_cc(ui_cc, ui_val).await;
+                        last_ui[fader] = ui_gate;
+                    }
+                } else {
+                    last_ui[fader] = u32::MAX;
                 }
             }
-            last_gate_glob.set(last_gate);
+            last_dest_gate_glob.set(last_dest);
+            last_ui_gate_glob.set(last_ui);
         }
     };
 
@@ -397,27 +442,34 @@ pub async fn run(
         loop {
             app.delay_millis(1).await;
             let shift = buttons.is_shift_pressed();
-            let mut layers = [LatchLayer::Main; CHANNELS];
-            for ch in 0..CHANNELS {
-                layers[ch] = layer_for_channel(shift, buttons.is_button_pressed(ch));
-            }
-            layers_glob.set(layers);
+            let any_button = (0..CHANNELS).any(|ch| buttons.is_button_pressed(ch));
+            let layer = ui_latch_layer(shift, any_button);
+            layers_glob.set([layer; CHANNELS]);
 
             let color = params.query(|p| p.color);
+            let flash_until = dest_flash_until_glob.get();
+            let now = Instant::now();
             for ch in 0..CHANNELS {
-                let layer = layers[ch];
-                let val = storage.query(|s| value_for(s, layer, ch));
+                let dest_layer = storage.query(|s| s.cv_dest[ch]);
+                let base = storage.query(|s| value_for(s, layer, ch));
+                let val = if layer == dest_layer {
+                    mod_with_input(base, cv_in[ch].get_value())
+                } else {
+                    base
+                };
                 let led = split_unsigned_value(val);
-                let accent = layer_accent(layer, color);
-                // Button + Top/Bottom: layer accent; button brightness = latched value.
-                leds.set(
-                    ch,
-                    Led::Button,
-                    accent,
-                    Brightness::Custom((val / 16) as u8),
-                );
-                leds.set(ch, Led::Top, accent, Brightness::Custom(led[0]));
-                leds.set(ch, Led::Bottom, accent, Brightness::Custom(led[1]));
+                let ui_accent = layer_accent(layer, color);
+                let dest_accent = layer_accent(dest_layer, color);
+                let flashing = now < flash_until[ch];
+                let button_color = if flashing { dest_accent } else { ui_accent };
+                let button_brightness = if flashing {
+                    Brightness::High
+                } else {
+                    Brightness::Custom((val / 16) as u8)
+                };
+                leds.set(ch, Led::Button, button_color, button_brightness);
+                leds.set(ch, Led::Top, ui_accent, Brightness::Custom(led[0]));
+                leds.set(ch, Led::Bottom, ui_accent, Brightness::Custom(led[1]));
             }
         }
     };
@@ -468,7 +520,12 @@ pub async fn run(
                 l[chan] = app.make_latch(faders.get_value_at(chan));
                 l
             });
-            last_gate_glob.modify(|g| {
+            last_dest_gate_glob.modify(|g| {
+                let mut g = *g;
+                g[chan] = u32::MAX;
+                g
+            });
+            last_ui_gate_glob.modify(|g| {
                 let mut g = *g;
                 g[chan] = u32::MAX;
                 g
@@ -492,8 +549,24 @@ pub async fn run(
 
     let long_press_task = async {
         loop {
-            buttons.wait_for_any_long_press().await;
+            let (chan, shift) = buttons.wait_for_any_long_press().await;
             long_press_fired.set(true);
+            if shift {
+                continue;
+            }
+            storage.modify_and_save(|s| {
+                s.cv_dest[chan] = cycle_cv_dest(s.cv_dest[chan]);
+            });
+            dest_flash_until_glob.modify(|d| {
+                let mut d = *d;
+                d[chan] = Instant::now() + Duration::from_millis(DEST_FLASH_MS);
+                d
+            });
+            last_dest_gate_glob.modify(|g| {
+                let mut g = *g;
+                g[chan] = u32::MAX;
+                g
+            });
         }
     };
 
