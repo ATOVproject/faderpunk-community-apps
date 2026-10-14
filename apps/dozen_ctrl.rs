@@ -294,15 +294,22 @@ pub async fn run(
 
     let layers_glob = app.make_global([LatchLayer::Main; CHANNELS]);
     let long_press_fired = app.make_global(false);
+    let latches_glob = app.make_global([
+        app.make_latch(faders.get_value_at(0)),
+        app.make_latch(faders.get_value_at(1)),
+        app.make_latch(faders.get_value_at(2)),
+        app.make_latch(faders.get_value_at(3)),
+    ]);
+    let last_gate_glob = app.make_global([u32::MAX; CHANNELS]);
 
     let midi_task = async {
-        let mut last_gate = [u32::MAX; 4];
         loop {
             app.delay_millis(1).await;
             if !midi_out.is_some() {
                 continue;
             }
             let layers = layers_glob.get();
+            let mut last_gate = last_gate_glob.get();
             for fader in 0..CHANNELS {
                 let layer = layers[fader];
                 let val = storage.query(|s| value_for(s, layer, fader));
@@ -313,6 +320,7 @@ pub async fn run(
                     last_gate[fader] = gate;
                 }
             }
+            last_gate_glob.set(last_gate);
         }
     };
 
@@ -346,23 +354,21 @@ pub async fn run(
     };
 
     let fader_task = async {
-        let mut latches = [
-            app.make_latch(faders.get_value_at(0)),
-            app.make_latch(faders.get_value_at(1)),
-            app.make_latch(faders.get_value_at(2)),
-            app.make_latch(faders.get_value_at(3)),
-        ];
         loop {
             let chan = faders.wait_for_any_change().await;
             let layer = layers_glob.get()[chan];
             let target = storage.query(|s| value_for(s, layer, chan));
+            let mut latches = latches_glob.get();
             if let Some(new_value) = latches[chan].update(faders.get_value_at(chan), layer, target)
             {
+                latches_glob.set(latches);
                 storage.modify_and_save(|s| match layer {
                     LatchLayer::Main => s.main[chan] = new_value,
                     LatchLayer::Alt => s.alt[chan] = new_value,
                     LatchLayer::Third => s.third[chan] = new_value,
                 });
+            } else {
+                latches_glob.set(latches);
             }
         }
     };
@@ -387,6 +393,16 @@ pub async fn run(
                 s.main[chan] = 0;
                 s.alt[chan] = 0;
                 s.third[chan] = 0;
+            });
+            latches_glob.modify(|l| {
+                let mut l = *l;
+                l[chan] = app.make_latch(faders.get_value_at(chan));
+                l
+            });
+            last_gate_glob.modify(|g| {
+                let mut g = *g;
+                g[chan] = u32::MAX;
+                g
             });
             // Local CC is rate-limited (~8 ms gap in midi_distributor); burst
             // try_sends would drop Alt/Third. Space the three zeros.
