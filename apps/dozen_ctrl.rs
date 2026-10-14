@@ -245,64 +245,68 @@ fn layer_accent(layer: LatchLayer, color: Color) -> Color {
 fn shift_hue(color: Color, degrees: i16) -> Color {
     let RGB8 { r, g, b } = RGB8::from(color);
     let (h, s, v) = rgb_to_hsv(r, g, b);
-    if s < 0.05 {
-        // Near-grey: hue is undefined — slight sat so ±shift is visible.
-        let h0 = if h.is_nan() { 0.0 } else { h };
-        let (nr, ng, nb) = hsv_to_rgb((h0 + degrees as f32).rem_euclid(360.0), 0.35, v.max(0.2));
+    let h = wrap_degrees(h + degrees);
+    if s < 13 {
+        // Near-grey: hue undefined — bump sat so ±shift is visible.
+        let (nr, ng, nb) = hsv_to_rgb(h, 90, v.max(51));
         return Color::Custom(nr, ng, nb);
     }
-    let (nr, ng, nb) = hsv_to_rgb((h + degrees as f32).rem_euclid(360.0), s, v);
+    let (nr, ng, nb) = hsv_to_rgb(h, s, v);
     Color::Custom(nr, ng, nb)
 }
 
-fn rgb_to_hsv(r: u8, g: u8, b: u8) -> (f32, f32, f32) {
-    let rf = r as f32 / 255.0;
-    let gf = g as f32 / 255.0;
-    let bf = b as f32 / 255.0;
-    let max = rf.max(gf).max(bf);
-    let min = rf.min(gf).min(bf);
-    let d = max - min;
+fn wrap_degrees(d: i16) -> u16 {
+    let mut d = d % 360;
+    if d < 0 {
+        d += 360;
+    }
+    d as u16
+}
+
+/// HSV with H in 0..360, S/V in 0..255.
+fn rgb_to_hsv(r: u8, g: u8, b: u8) -> (i16, u8, u8) {
+    let max = r.max(g).max(b);
+    let min = r.min(g).min(b);
     let v = max;
-    let s = if max <= 0.0 { 0.0 } else { d / max };
-    let h = if d <= 1e-6 {
-        f32::NAN
-    } else if max == rf {
-        60.0 * ((gf - bf) / d).rem_euclid(6.0)
-    } else if max == gf {
-        60.0 * (((bf - rf) / d) + 2.0)
+    let d = max - min;
+    let s = if max == 0 {
+        0
     } else {
-        60.0 * (((rf - gf) / d) + 4.0)
+        ((d as u16 * 255) / max as u16) as u8
     };
-    (h, s, v)
+    if d == 0 {
+        return (0, s, v);
+    }
+    let h = if max == r {
+        60 * (i16::from(g) - i16::from(b)) / i16::from(d)
+    } else if max == g {
+        120 + 60 * (i16::from(b) - i16::from(r)) / i16::from(d)
+    } else {
+        240 + 60 * (i16::from(r) - i16::from(g)) / i16::from(d)
+    };
+    (wrap_degrees(h) as i16, s, v)
 }
 
-fn hsv_to_rgb(h: f32, s: f32, v: f32) -> (u8, u8, u8) {
-    let c = v * s;
-    let x = c * (1.0 - ((h / 60.0).rem_euclid(2.0) - 1.0).abs());
-    let m = v - c;
-    let (rp, gp, bp) = if h < 60.0 {
-        (c, x, 0.0)
-    } else if h < 120.0 {
-        (x, c, 0.0)
-    } else if h < 180.0 {
-        (0.0, c, x)
-    } else if h < 240.0 {
-        (0.0, x, c)
-    } else if h < 300.0 {
-        (x, 0.0, c)
-    } else {
-        (c, 0.0, x)
+fn hsv_to_rgb(h: u16, s: u8, v: u8) -> (u8, u8, u8) {
+    if s == 0 {
+        return (v, v, v);
+    }
+    let region = h / 60;
+    let rem = (h % 60) as u32;
+    let v = v as u32;
+    let s = s as u32;
+    let p = v * (255 - s) / 255;
+    let q = v * (255 - (s * rem) / 60) / 255;
+    let t = v * (255 - (s * (60 - rem)) / 60) / 255;
+    let (r, g, b) = match region {
+        0 => (v, t, p),
+        1 => (q, v, p),
+        2 => (p, v, t),
+        3 => (p, q, v),
+        4 => (t, p, v),
+        _ => (v, p, q),
     };
-    (
-        f32_to_u8_color((rp + m) * 255.0),
-        f32_to_u8_color((gp + m) * 255.0),
-        f32_to_u8_color((bp + m) * 255.0),
-    )
-}
-
-fn f32_to_u8_color(x: f32) -> u8 {
-    let x = x.clamp(0.0, 255.0);
-    (x + 0.5) as u8
+    (r as u8, g as u8, b as u8)
 }
 
 #[embassy_executor::task(pool_size = 16 / CHANNELS)]
