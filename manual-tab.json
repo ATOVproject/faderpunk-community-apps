@@ -1173,5 +1173,57 @@
       "CV and gate pattern select faders",
       "Muted"
     ]
+  },
+  {
+    "appId": 123,
+    "title": "Dozen Ctrl",
+    "description": "4x3 latched MIDI CC expander for one synth",
+    "icon": "fader",
+    "color": "cyan",
+    "text": "Dozen Ctrl maps four faders across three latch layers (Main, Shift+Alt, Ch0+Third) to twelve MIDI CCs on a single channel. Pick a **Device** to load suggested CC defaults; the full per-device map (recommended first, then every CC from Presetpunk/Devices JSON) ships as `device-cc-catalog.json` beside the firmware docs. Fader values latch per layer and persist in scenes.",
+    "channels": [
+      {
+        "faderTitle": "CC fader",
+        "faderDescription": "Sends the CC for this channel's M/A/T slot.",
+        "faderPlusShiftTitle": "Alt layer",
+        "faderPlusShiftDescription": "Shift — edit/sends A1–A4 slots.",
+        "faderPlusFnTitle": "Third layer",
+        "faderPlusFnDescription": "Hold Ch0 button — edit/sends T1–T4 slots."
+      },
+      {
+        "faderTitle": "CC fader",
+        "faderDescription": "Channel 2 slot in the active layer."
+      },
+      {
+        "faderTitle": "CC fader",
+        "faderDescription": "Channel 3 slot in the active layer."
+      },
+      {
+        "faderTitle": "CC fader",
+        "faderDescription": "Channel 4 slot in the active layer."
+      }
+    ],
+    "params": [
+      "Device",
+      "MIDI Channel",
+      "M1",
+      "M2",
+      "M3",
+      "M4",
+      "A1",
+      "A2",
+      "A3",
+      "A4",
+      "T1",
+      "T2",
+      "T3",
+      "T4",
+      "MIDI Out"
+    ],
+    "storage": [
+      "Main faders 1–4",
+      "Alt faders 1–4",
+      "Third faders 1–4"
+    ]
   }
 ]
