@@ -78,8 +78,6 @@ use crate::app::{App, AppParams, AppStorage, Led, ManagedStorage, ParamStore, Sc
 pub const CHANNELS: usize = 4;
 pub const PARAMS: usize = 16;
 
-const LED_BRIGHTNESS: Brightness = Brightness::Mid;
-
 pub static CONFIG: Config<PARAMS> = Config::new(
     "Dozen Ctrl",
     "4x3 latched MIDI CC expander for one device",
@@ -210,11 +208,31 @@ impl Default for Storage {
 
 impl AppStorage for Storage {}
 
-fn layer_values(storage: &Storage, layer: LatchLayer) -> [u16; 4] {
+fn value_for(storage: &Storage, layer: LatchLayer, ch: usize) -> u16 {
+    let ch = ch.min(3);
     match layer {
-        LatchLayer::Main => storage.main,
-        LatchLayer::Alt => storage.alt,
-        LatchLayer::Third => storage.third,
+        LatchLayer::Main => storage.main[ch],
+        LatchLayer::Alt => storage.alt[ch],
+        LatchLayer::Third => storage.third[ch],
+    }
+}
+
+/// Per-channel latch: Shift → Alt (all), hold that channel’s button → Third (only that ch).
+fn layer_for_channel(shift: bool, button: bool) -> LatchLayer {
+    if shift && !button {
+        LatchLayer::Alt
+    } else if !shift && button {
+        LatchLayer::Third
+    } else {
+        LatchLayer::Main
+    }
+}
+
+fn layer_accent(layer: LatchLayer, color: Color) -> Color {
+    match layer {
+        LatchLayer::Main => color,
+        LatchLayer::Alt => Color::Orange,
+        LatchLayer::Third => Color::Violet,
     }
 }
 
@@ -270,7 +288,7 @@ pub async fn run(
     let buttons = app.use_buttons();
     let leds = app.use_leds();
 
-    let latch_glob = app.make_global(LatchLayer::Main);
+    let layers_glob = app.make_global([LatchLayer::Main; CHANNELS]);
 
     let midi_task = async {
         let mut last_gate = [u32::MAX; 4];
@@ -279,11 +297,11 @@ pub async fn run(
             if !midi_out.is_some() {
                 continue;
             }
-            let layer = latch_glob.get();
-            let values = storage.query(|s| layer_values(s, layer));
+            let layers = layers_glob.get();
             for fader in 0..CHANNELS {
+                let layer = layers[fader];
+                let val = storage.query(|s| value_for(s, layer, fader));
                 let cc = params.query(|p| p.cc_for_layer(layer, fader));
-                let val = values[fader];
                 let gate = midi_gate(val, false) as u32;
                 if gate != last_gate[fader] {
                     midi.send_cc(cc, val).await;
@@ -296,25 +314,26 @@ pub async fn run(
     let layer_task = async {
         loop {
             app.delay_millis(1).await;
-            let layer = if buttons.is_shift_pressed() && !buttons.is_button_pressed(0) {
-                LatchLayer::Alt
-            } else if !buttons.is_shift_pressed() && buttons.is_button_pressed(0) {
-                LatchLayer::Third
-            } else {
-                LatchLayer::Main
-            };
-            latch_glob.set(layer);
+            let shift = buttons.is_shift_pressed();
+            let mut layers = [LatchLayer::Main; CHANNELS];
+            for ch in 0..CHANNELS {
+                layers[ch] = layer_for_channel(shift, buttons.is_button_pressed(ch));
+            }
+            layers_glob.set(layers);
 
             let color = params.query(|p| p.color);
             for ch in 0..CHANNELS {
-                let vals = storage.query(|s| layer_values(s, layer));
-                let led = split_unsigned_value(vals[ch]);
-                let accent = match layer {
-                    LatchLayer::Main => color,
-                    LatchLayer::Alt => Color::Orange,
-                    LatchLayer::Third => Color::Violet,
-                };
-                leds.set(ch, Led::Button, color, LED_BRIGHTNESS);
+                let layer = layers[ch];
+                let val = storage.query(|s| value_for(s, layer, ch));
+                let led = split_unsigned_value(val);
+                let accent = layer_accent(layer, color);
+                // Top/Bottom: layer hue. Button: app Color, brightness = latched value.
+                leds.set(
+                    ch,
+                    Led::Button,
+                    color,
+                    Brightness::Custom((val / 16) as u8),
+                );
                 leds.set(ch, Led::Top, accent, Brightness::Custom(led[0]));
                 leds.set(ch, Led::Bottom, accent, Brightness::Custom(led[1]));
             }
@@ -330,8 +349,8 @@ pub async fn run(
         ];
         loop {
             let chan = faders.wait_for_any_change().await;
-            let layer = latch_glob.get();
-            let target = storage.query(|s| layer_values(s, layer))[chan];
+            let layer = layers_glob.get()[chan];
+            let target = storage.query(|s| value_for(s, layer, chan));
             if let Some(new_value) = latches[chan].update(faders.get_value_at(chan), layer, target)
             {
                 storage.modify_and_save(|s| match layer {
