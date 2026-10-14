@@ -1180,7 +1180,7 @@
     "description": "4x3 latched MIDI CC expander for one synth",
     "icon": "fader",
     "color": "cyan",
-    "text": "Dozen Ctrl maps four faders across three latch layers (Main, Shift+Alt, Ch0+Third) to twelve MIDI CCs on a single channel. Pick a **Device** to load suggested CC defaults; the full per-device map (recommended first, then every CC from Presetpunk/Devices JSON) ships as `device-cc-catalog.json` beside the firmware docs. Fader values latch per layer and persist in scenes.",
+    "text": "Dozen Ctrl maps four faders across three latch layers (Main, Shift+Alt, Ch0+Third) to twelve MIDI CCs on a single channel. Pick a **Device** (23 synths/drums, DE-focused list) to load suggested CC defaults; the full per-device map lives in the main Faderpunk `device-cc-catalog.json`. **Color** sets button LED tint; Main-layer fader LEDs use that color (Alt orange, Third violet). Fader values latch per layer and persist in scenes.",
     "channels": [
       {
         "faderTitle": "CC fader",
@@ -1218,6 +1218,7 @@
       "T2",
       "T3",
       "T4",
+      "Color",
       "MIDI Out"
     ],
     "storage": [

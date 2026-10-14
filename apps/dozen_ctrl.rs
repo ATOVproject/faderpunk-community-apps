@@ -1,10 +1,62 @@
 //! Dozen Ctrl — 4×3 latched MIDI CC banks for one synth on one channel.
 //!
-//! Full per-device CC maps live in `docs/apps/123-dozen-ctrl/device-cc-catalog.json`
-//! (recommended ★ entries match firmware `DEFAULT_CCS` when you change Device).
+//! Device enum loads ★ suggested CCs into M/A/T slots; full per-device maps
+//! live in the main Faderpunk repo (`device-cc-catalog.json`).
 
-#[path = "dozen_ctrl_defaults.rs"]
-mod dozen_ctrl_defaults;
+pub const DEVICE_COUNT: usize = 23;
+
+pub const DEVICE_NAMES: &[&str] = &[
+    "Hydrasynth",
+    "Blofeld",
+    "LXR-02",
+    "Tempera",
+    "Vector",
+    "Minitaur",
+    "P-6",
+    "Drum 3P",
+    "Streichfett",
+    "Polyphrase",
+    "M-Vave FM1",
+    "Digitone",
+    "Digitakt",
+    "Syntakt",
+    "DeepMind 12",
+    "Minilogue XD",
+    "MiniFreak",
+    "Take 5",
+    "Bass Station II",
+    "S-1",
+    "Iridium",
+    "Subsequent 37",
+    "microKORG",
+];
+
+/// Default CC numbers for slots M1–M4, A1–A4, T1–T4 per device.
+pub const DEFAULT_CCS: [[u8; 12]; DEVICE_COUNT] = [
+    [1, 14, 15, 29, 30, 31, 33, 34, 35, 36, 37, 39],
+    [1, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
+    [21, 22, 23, 24, 25, 26, 27, 30, 31, 32, 33, 34],
+    [17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 53, 54],
+    [12, 18, 20, 21, 22, 23, 24, 26, 27, 29, 1, 2],
+    [82, 85, 86, 87, 89, 112, 5, 65, 70, 71, 72, 73],
+    [12, 24, 26, 71, 74, 78, 85, 86, 89, 90, 3, 7],
+    [12, 13, 14, 15, 16, 17, 30, 31, 44, 45, 46, 47],
+    [1, 76, 91, 92, 93, 94, 64, 70, 71, 72, 73, 74],
+    [2, 3, 1, 4, 5, 6, 7, 8, 9, 10, 11, 13],
+    [1, 11, 70, 71, 73, 74, 75, 79, 91, 93, 94, 95],
+    [9, 12, 13, 14, 19, 21, 22, 23, 24, 25, 26, 27],
+    [2, 13, 14, 24, 25, 27, 28, 29, 70, 71, 73, 74],
+    [13, 14, 15, 16, 18, 19, 20, 21, 22, 23, 24, 25],
+    [12, 13, 31, 46, 47, 48, 49, 58, 59, 60, 61, 114],
+    [24, 26, 27, 28, 29, 41, 43, 56, 57, 58, 59, 83],
+    [1, 24, 68, 69, 74, 76, 77, 80, 81, 83, 94, 5],
+    [1, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26],
+    [16, 17, 18, 19, 28, 31, 71, 72, 73, 76, 77, 78],
+    [1, 3, 12, 13, 17, 24, 25, 26, 27, 71, 74, 79],
+    [9, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 93],
+    [1, 3, 11, 16, 18, 19, 21, 22, 23, 24, 26, 27],
+    [12, 13, 23, 24, 26, 27, 71, 74, 76, 79, 82, 83],
+];
 
 use embassy_futures::{
     join::join4,
@@ -23,12 +75,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::app::{App, AppParams, AppStorage, Led, ManagedStorage, ParamStore, SceneEvent};
 
-use dozen_ctrl_defaults::{DEFAULT_CCS, DEVICE_COUNT, DEVICE_NAMES};
-
 pub const CHANNELS: usize = 4;
-pub const PARAMS: usize = 15;
+pub const PARAMS: usize = 16;
 
-const LED_COLOR: Color = Color::Cyan;
 const LED_BRIGHTNESS: Brightness = Brightness::Mid;
 
 pub static CONFIG: Config<PARAMS> = Config::new(
@@ -56,12 +105,26 @@ pub static CONFIG: Config<PARAMS> = Config::new(
 .add_param(Param::MidiCc { name: "T2" })
 .add_param(Param::MidiCc { name: "T3" })
 .add_param(Param::MidiCc { name: "T4" })
+.add_param(Param::Color {
+    name: "Color",
+    variants: &[
+        Color::Blue,
+        Color::Green,
+        Color::Rose,
+        Color::Orange,
+        Color::Cyan,
+        Color::Pink,
+        Color::Violet,
+        Color::Yellow,
+    ],
+})
 .add_param(Param::MidiOut);
 
 pub struct Params {
     device: usize,
     midi_channel: MidiChannel,
     slots: [MidiCc; 12],
+    color: Color,
     midi_out: MidiOut,
 }
 
@@ -90,18 +153,28 @@ fn apply_device_defaults(p: &mut Params, device: usize) {
 
 impl AppParams for Params {
     fn from_values(values: &[Value]) -> Option<Self> {
-        if values.len() < PARAMS {
+        // 15 = pre-Color layout (MidiOut at 14); 16 = Color + MidiOut.
+        if values.len() < 15 {
             return None;
         }
         let mut slots = [MidiCc::from(1u8); 12];
         for i in 0..12 {
             slots[i] = MidiCc::from_value(values[2 + i]);
         }
+        let (color, midi_out) = if values.len() >= PARAMS {
+            (
+                Color::from_value(values[14]),
+                MidiOut::from_value(values[15]),
+            )
+        } else {
+            (Color::Cyan, MidiOut::from_value(values[14]))
+        };
         Some(Self {
             device: usize::from_value(values[0]),
             midi_channel: MidiChannel::from_value(values[1]),
             slots,
-            midi_out: MidiOut::from_value(values[14]),
+            color,
+            midi_out,
         })
     }
 
@@ -112,6 +185,7 @@ impl AppParams for Params {
         for cc in &self.slots {
             vec.push((*cc).into()).unwrap();
         }
+        vec.push(self.color.into()).unwrap();
         vec.push(self.midi_out.into()).unwrap();
         vec
     }
@@ -151,6 +225,7 @@ pub async fn wrapper(app: App<CHANNELS>, exit_signal: &'static Signal<NoopRawMut
         device,
         midi_channel: MidiChannel::default(),
         slots: [MidiCc::from(1u8); 12],
+        color: Color::Cyan,
         midi_out: MidiOut::default(),
     };
     apply_device_defaults(&mut initial, device);
@@ -174,9 +249,7 @@ pub async fn wrapper(app: App<CHANNELS>, exit_signal: &'static Signal<NoopRawMut
             let cur = param_store.query(|p| p.device);
             if cur != prev_device {
                 let idx = cur;
-                param_store
-                    .update(|p| apply_device_defaults(p, idx))
-                    .await;
+                param_store.update(|p| apply_device_defaults(p, idx)).await;
                 prev_device = cur;
             }
         }
@@ -198,10 +271,6 @@ pub async fn run(
     let leds = app.use_leds();
 
     let latch_glob = app.make_global(LatchLayer::Main);
-
-    for ch in 0..CHANNELS {
-        leds.set(ch, Led::Button, LED_COLOR, LED_BRIGHTNESS);
-    }
 
     let midi_task = async {
         let mut last_gate = [u32::MAX; 4];
@@ -236,14 +305,16 @@ pub async fn run(
             };
             latch_glob.set(layer);
 
+            let color = params.query(|p| p.color);
             for ch in 0..CHANNELS {
                 let vals = storage.query(|s| layer_values(s, layer));
                 let led = split_unsigned_value(vals[ch]);
                 let accent = match layer {
-                    LatchLayer::Main => LED_COLOR,
+                    LatchLayer::Main => color,
                     LatchLayer::Alt => Color::Orange,
                     LatchLayer::Third => Color::Violet,
                 };
+                leds.set(ch, Led::Button, color, LED_BRIGHTNESS);
                 leds.set(ch, Led::Top, accent, Brightness::Custom(led[0]));
                 leds.set(ch, Led::Bottom, accent, Brightness::Custom(led[1]));
             }
