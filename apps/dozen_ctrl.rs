@@ -340,11 +340,11 @@ pub async fn run(
                 let val = storage.query(|s| value_for(s, layer, ch));
                 let led = split_unsigned_value(val);
                 let accent = layer_accent(layer, color);
-                // Top/Bottom: layer hue. Button: app Color, brightness = latched value.
+                // Button + Top/Bottom: layer accent; button brightness = latched value.
                 leds.set(
                     ch,
                     Led::Button,
-                    color,
+                    accent,
                     Brightness::Custom((val / 16) as u8),
                 );
                 leds.set(ch, Led::Top, accent, Brightness::Custom(led[0]));
