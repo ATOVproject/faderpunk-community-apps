@@ -1,0 +1,14 @@
+# Files whose change needs a code-owner review (enforced by branch protection:
+# "Require review from Code Owners"). App and data files are NOT listed: those
+# PRs are covered by the mechanical checks plus one ordinary approval.
+#
+# KEEP IN SYNC with `maint_re` in .github/scripts/pr-scope-check.sh — the
+# "maintainer change" PR kind is exactly this list.
+/.github/          @ArthurGibert
+/scripts/          @ArthurGibert
+/tools/            @ArthurGibert
+/Makefile          @ArthurGibert
+/*.schema.json     @ArthurGibert
+/CONTRIBUTING.md   @ArthurGibert
+/README.md         @ArthurGibert
+/.gitignore        @ArthurGibert

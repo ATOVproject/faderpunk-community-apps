@@ -1,0 +1,176 @@
+{
+  "files": [
+    {
+      "filename": "manual-tab.json",
+      "status": "modified",
+      "additions": 1,
+      "deletions": 1,
+      "patch": ""
+    }
+  ],
+  "base_catalog": [
+    {
+      "appId": 100,
+      "module": "foo",
+      "author": "alice",
+      "version": "0.1.0"
+    },
+    {
+      "appId": 101,
+      "module": "bar",
+      "author": "bob",
+      "version": "1.0.0"
+    },
+    {
+      "appId": 102,
+      "module": "baz",
+      "author": "alice",
+      "version": "0.1.0"
+    }
+  ],
+  "head_catalog": [
+    {
+      "appId": 100,
+      "module": "foo",
+      "author": "alice",
+      "version": "0.1.0"
+    },
+    {
+      "appId": 101,
+      "module": "bar",
+      "author": "bob",
+      "version": "1.0.0"
+    },
+    {
+      "appId": 102,
+      "module": "baz",
+      "author": "alice",
+      "version": "0.1.0"
+    }
+  ],
+  "base_manual_tab": [
+    {
+      "appId": 100,
+      "title": "Foo",
+      "description": "Foo description",
+      "icon": "fader",
+      "color": "Blue",
+      "params": [],
+      "storage": [],
+      "text": "Does a thing.",
+      "channels": [
+        {
+          "jackTitle": "Out",
+          "jackDescription": "CV out",
+          "faderTitle": "Level",
+          "faderDescription": "Sets the level",
+          "ledTop": "Level",
+          "ledBottom": "Level"
+        }
+      ]
+    },
+    {
+      "appId": 101,
+      "title": "Bar",
+      "description": "Bar description",
+      "icon": "fader",
+      "color": "Blue",
+      "params": [],
+      "storage": [],
+      "text": "Does a thing.",
+      "channels": [
+        {
+          "jackTitle": "Out",
+          "jackDescription": "CV out",
+          "faderTitle": "Level",
+          "faderDescription": "Sets the level",
+          "ledTop": "Level",
+          "ledBottom": "Level"
+        }
+      ]
+    },
+    {
+      "appId": 102,
+      "title": "Baz",
+      "description": "Baz description",
+      "icon": "fader",
+      "color": "Blue",
+      "params": [],
+      "storage": [],
+      "text": "Does a thing.",
+      "channels": [
+        {
+          "jackTitle": "Out",
+          "jackDescription": "CV out",
+          "faderTitle": "Level",
+          "faderDescription": "Sets the level",
+          "ledTop": "Level",
+          "ledBottom": "Level"
+        }
+      ]
+    }
+  ],
+  "head_manual_tab": [
+    {
+      "appId": 100,
+      "title": "Foo",
+      "description": "Foo description",
+      "icon": "fader",
+      "color": "Blue",
+      "params": [],
+      "storage": [],
+      "text": "Does a thing.",
+      "channels": [
+        {
+          "jackTitle": "Out",
+          "jackDescription": "CV out",
+          "faderTitle": "Level",
+          "faderDescription": "Sets the level",
+          "ledTop": "Level",
+          "ledBottom": "Level"
+        }
+      ]
+    },
+    {
+      "appId": 101,
+      "title": "Bar",
+      "description": "Bar description",
+      "icon": "fader",
+      "color": "Blue",
+      "params": [],
+      "storage": [],
+      "text": "#### Rewritten\n\n- structured\n- bullets",
+      "channels": [
+        {
+          "jackTitle": "Out",
+          "jackDescription": "CV out",
+          "faderTitle": "Level",
+          "faderDescription": "Sets the level",
+          "ledTop": "Level",
+          "ledBottom": "Level"
+        }
+      ]
+    },
+    {
+      "appId": 102,
+      "title": "Baz",
+      "description": "Baz description",
+      "icon": "fader",
+      "color": "Blue",
+      "params": [],
+      "storage": [],
+      "text": "Does a thing.",
+      "channels": [
+        {
+          "jackTitle": "Out",
+          "jackDescription": "CV out",
+          "faderTitle": "Level",
+          "faderDescription": "Sets the level",
+          "ledTop": "Level",
+          "ledBottom": "Level"
+        }
+      ]
+    }
+  ],
+  "pr_author": "alice"
+}
