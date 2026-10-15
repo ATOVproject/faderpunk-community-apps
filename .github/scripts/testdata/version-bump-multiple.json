@@ -1,4 +1,5 @@
 {
+  "pr_author": "carol", "maintainers": ["carol"],
   "files": [
     {
       "filename": "apps-catalog.json",
