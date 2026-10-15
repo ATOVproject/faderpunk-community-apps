@@ -891,8 +891,14 @@ pub async fn run(
 
     let clock_drain = async {
         loop {
-            if let ClockEvent::Tick(tick) = clock.wait_for_event(ClockDivision::_1).await {
-                glob_ticks.set(tick);
+            match clock.wait_for_event(ClockDivision::_1).await {
+                ClockEvent::Tick(tick) => {
+                    glob_ticks.set(tick);
+                }
+                ClockEvent::Reset => {
+                    glob_ticks.set(0);
+                }
+                _ => {}
             }
         }
     };
