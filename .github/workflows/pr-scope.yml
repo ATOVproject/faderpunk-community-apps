@@ -17,20 +17,16 @@ name: Community app submission check
 # workflows run on fork PRs (Settings > Actions > General), so a maintainer
 # sees a new contributor's code before any of it runs.
 
+# Runs on EVERY pull request, with no `paths:` filter. pr-scope-check.sh
+# recognises five kinds of PR (submission, app fix, manual edit, version bump,
+# maintainer change -- see CONTRIBUTING.md), so no legitimate PR fails by
+# construction any more and there is nothing to filter out. Running always
+# also means the required `gate` status below reports on every PR; a
+# path-filtered required check would never report on a docs PR and would
+# leave it stuck at "Expected".
 on:
   pull_request:
     types: [opened, synchronize, reopened]
-    # Only a PR that touches apps needs this gate at all -- a new app
-    # submission or a fix to existing apps (the two scopes
-    # pr-scope-check.sh recognises). An infra/CI change (a new workflow
-    # file, a script fix, etc.) is neither and would always fail the scope
-    # check by construction. Scoping the trigger, not the check itself,
-    # keeps the check exactly as strict as it already is for the PRs it's
-    # meant to gate.
-    paths:
-      - "apps/**"
-      - "apps-catalog.json"
-      - "manual-tab.json"
 
 permissions:
   contents: read
@@ -38,10 +34,14 @@ permissions:
 
 jobs:
   scope-check:
-    if: ${{ !endsWith(github.actor, '[bot]') }}
+    # No bot skip: a skipped scope-check would let a bot PR through the gate.
+    # A bot PR (e.g. a Dependabot actions bump) is a maintainer change like
+    # any other and needs a code-owner review.
     runs-on: ubuntu-latest
     env:
       GH_TOKEN: ${{ github.token }}
+      PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+      PR_NUMBER: ${{ github.event.pull_request.number }}
     outputs:
       passed: ${{ steps.check.outputs.passed }}
       modules: ${{ steps.assemble.outputs.modules }}
@@ -82,10 +82,40 @@ jobs:
                 mv head-sources.tmp head-sources.json
               done
 
+      # Who counts as a maintainer comes from the BASE commit, never the PR
+      # head, so a PR can't add itself to the list. Missing file (the PR that
+      # introduces it) or any API error = empty list = nobody is a maintainer.
+      - name: Fetch the maintainer list from the base commit
+        run: |
+          base_sha="${{ github.event.pull_request.base.sha }}"
+          if ! gh api "repos/${{ github.repository }}/contents/.github/MAINTAINERS?ref=$base_sha" \
+              --jq '.content' | base64 -d > MAINTAINERS; then
+            : > MAINTAINERS
+          fi
+          jq -R -s 'split("\n") | map(gsub("^\\s+|\\s+$"; "")) | map(select(length > 0 and (startswith("#") | not)))' \
+            MAINTAINERS > maintainers.json
+
+      # Advisory only (soft-flag): other open PRs that change the same files.
+      # Any failure here must not fail the check, so it falls back to {}.
+      - name: Find other open PRs touching the same files
+        run: |
+          if gh pr list --repo "$GITHUB_REPOSITORY" --state open --limit 200 --json number,files > open-prs.json; then
+            jq -n --argjson me "$PR_NUMBER" --slurpfile open open-prs.json --slurpfile files files.json '
+              ($files[0] | map(.filename)) as $mine
+              | [ $open[0][] | select(.number != $me) | .number as $n | .files[].path | select(. as $p | $mine | index($p)) | {file: ., pr: $n} ]
+              | group_by(.file) | map({key: .[0].file, value: (map(.pr) | unique)}) | from_entries
+            ' > overlaps.json || echo '{}' > overlaps.json
+          else
+            echo '{}' > overlaps.json
+          fi
+
       - name: Assemble fixture and derive module names
         id: assemble
         run: |
           jq -n \
+            --arg pr_author "$PR_AUTHOR" \
+            --slurpfile maintainers maintainers.json \
+            --slurpfile overlaps overlaps.json \
             --slurpfile files files.json \
             --slurpfile base base-catalog.json \
             --slurpfile head head-catalog.json \
@@ -93,6 +123,9 @@ jobs:
             --slurpfile head_manual head-manual-tab.json \
             --slurpfile head_sources head-sources.json \
             '{
+              pr_author: $pr_author,
+              maintainers: $maintainers[0],
+              overlaps: $overlaps[0],
               files: $files[0],
               base_catalog: $base[0],
               head_catalog: $head[0],
@@ -214,6 +247,32 @@ jobs:
 
       - name: Validate against apps-catalog.schema.json
         run: npx -y ajv-cli@5 validate -s apps-catalog.schema.json -d head-apps-catalog.json --spec=draft2020 --strict=false
+
+  # The ONE status to require in branch protection. build-check is a matrix
+  # whose job names vary per app (and it is skipped outright when no app is
+  # touched), so it can't be required directly. This passes only if
+  # scope-check succeeded and nothing else failed or was cancelled; build-check
+  # and manual-check may be skipped (docs/infra PRs, or a scope-check failure
+  # -- which already fails the gate above).
+  gate:
+    if: always()
+    needs: [scope-check, build-check, manual-check]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require scope-check success and no failed or cancelled job
+        env:
+          SCOPE: ${{ needs.scope-check.result }}
+          BUILD: ${{ needs.build-check.result }}
+          MANUAL: ${{ needs.manual-check.result }}
+        run: |
+          echo "scope-check=$SCOPE build-check=$BUILD manual-check=$MANUAL"
+          [ "$SCOPE" = "success" ] || { echo "scope-check must succeed"; exit 1; }
+          for r in "$BUILD" "$MANUAL"; do
+            case "$r" in
+              success|skipped) ;;
+              *) echo "a required job ended as '$r'"; exit 1 ;;
+            esac
+          done
 
   # AI first-pass review: not wired up yet. Per the plan (see CONTRIBUTING.md
   # "Review"), this is meant to run once scope-check and build-check both
