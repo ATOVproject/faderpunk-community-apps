@@ -118,7 +118,7 @@ pub static CONFIG: Config<PARAMS> = Config::new(
 })
 .add_param(Param::MidiOut)
 .add_param(Param::MidiChannel {
-    name: "MIDI Out",
+    name: "MIDI Out CH",
 })
 .add_param(Param::MidiChannel {
     name: "MIDI Out Pong",
