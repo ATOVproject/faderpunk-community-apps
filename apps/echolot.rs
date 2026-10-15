@@ -1062,18 +1062,24 @@ pub async fn run(
                         }
                     }
                 }
-                // Channel-wide MIDI panic on both outs.
+                // Channel-wide MIDI panic on both outs. Per-note NoteOff above uses a
+                // blocking send; CCs use `send_cc` (try_send) and drop when the queue
+                // is still full from the burst — pace so the MIDI task can drain.
+                app.delay_millis(5).await;
                 const ALL_SOUND_OFF: u8 = 120;
                 const ALL_NOTES_OFF: u8 = 123;
                 midi_a
                     .send_cc(MidiCc::from(ALL_SOUND_OFF), 0)
                     .await;
+                app.delay_millis(5).await;
                 midi_a
                     .send_cc(MidiCc::from(ALL_NOTES_OFF), 0)
                     .await;
+                app.delay_millis(5).await;
                 midi_b
                     .send_cc(MidiCc::from(ALL_SOUND_OFF), 0)
                     .await;
+                app.delay_millis(5).await;
                 midi_b
                     .send_cc(MidiCc::from(ALL_NOTES_OFF), 0)
                     .await;
