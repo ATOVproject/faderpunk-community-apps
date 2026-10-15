@@ -1,0 +1,62 @@
+{
+  "files": [
+    {
+      "filename": "apps/test_clean.rs",
+      "status": "added",
+      "additions": 11,
+      "deletions": 0,
+      "patch": "@@ -0,0 +1,11 @@\n+use crate::app::{App, AppParams, AppStorage, Led, ManagedStorage, ParamStore};\n+\n+pub const CHANNELS: usize = 1;\n+\n+pub static CONFIG: Config<0> = Config::new(\"Test Clean\", \"A clean POC submission\", Color::Blue, AppIcon::Fader);\n+\n+pub async fn run(app: &App<CHANNELS>) {\n+    loop {\n+        app.use_buttons().wait_for_down(0).await;\n+    }\n+}"
+    },
+    {
+      "filename": "apps-catalog.json",
+      "status": "modified",
+      "additions": 5,
+      "deletions": 0,
+      "patch": ""
+    },
+    {
+      "filename": "manual-tab.json",
+      "status": "modified",
+      "additions": 20,
+      "deletions": 0,
+      "patch": ""
+    }
+  ],
+  "base_catalog": [],
+  "head_catalog": [
+    {
+      "appId": 200,
+      "module": "test_clean",
+      "author": "poc-tester",
+      "version": "0.1.0"
+    }
+  ],
+  "base_manual_tab": [],
+  "head_manual_tab": [
+    {
+      "appId": 200,
+      "title": "Test Clean",
+      "description": "A clean POC submission",
+      "icon": "fader",
+      "color": "Blue",
+      "params": [
+        "Speed"
+      ],
+      "storage": [
+        "Muted"
+      ],
+      "text": "A clean test fixture app, used to prove the happy path passes every check.",
+      "channels": [
+        {
+          "jackTitle": "Output",
+          "jackDescription": "CV output",
+          "faderTitle": "Level",
+          "faderDescription": "Sets the output level",
+          "ledTop": "Level indicator",
+          "ledBottom": "Level indicator"
+        }
+      ]
+    }
+  ],
+  "pr_author": "POC-Tester"
+}
