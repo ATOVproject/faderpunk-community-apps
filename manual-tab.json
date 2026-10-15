@@ -1178,8 +1178,8 @@
     "appId": 123,
     "title": "Dozen Ctrl",
     "description": "4x3 latched MIDI CC expander for one synth",
-    "icon": "fader",
-    "color": "cyan",
+    "icon": "Fader",
+    "color": "Cyan",
     "text": "Dozen Ctrl maps four faders across three latch layers to twelve MIDI CCs on one channel. **Main** uses M1–M4. **Shift** (no button held) → **Alt** on all four channels (A1–A4, hue +20°). **Hold any channel button** → **Third** on all four channels (T1–T4, hue −20°). **Long press** a channel button (no Shift) cycles that channel’s **CV destination** layer Main → Alt → Third → Main (default Main); the button flashes the new dest accent ~300 ms. Each **CV in** (±5 V) bipolar-adds onto the destination layer for that channel; MIDI tracks the dest CC with CV applied, and sends the UI layer CC unmodulated when it differs. **Shift + channel button short tap** (no fader move) resets that channel’s Main, Alt, and Third to 0 and sends CC 0 on all three slots when MIDI Out is set. Pick a **Device** (23 synths/drums) for suggested CC defaults; full maps in Faderpunk’s `device-cc-catalog.json`. **Color** sets LED hue; button brightness follows the effective value on the UI layer (CV when UI matches dest). Values latch per layer and persist in scenes.",
     "channels": [
       {
