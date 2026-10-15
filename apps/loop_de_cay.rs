@@ -814,7 +814,11 @@ pub async fn run(
     let glob_clock_reset = app.make_global(false);
     let glob_clock_stop = app.make_global(false);
     let glob_clock_start = app.make_global(false);
-    let rng_glob = app.make_global(0x00C0_FFEEu32);
+    // Per-instance seed so parallel Loop de Cay apps do not share the same
+    // "Random" decay sequence (Arthur #36 nit).
+    let rng_glob = app.make_global(
+        0x00C0_FFEEu32.wrapping_mul((app.start_channel as u32).wrapping_add(1)),
+    );
 
     if muted.get() {
         leds.set(0, Led::Button, Color::Red, Brightness::Low);
