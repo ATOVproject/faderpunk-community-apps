@@ -194,9 +194,79 @@ PY
   fi
 }
 
+check_coltrane_inline_drift() {
+  local gs="apps/giant_steps.rs"
+  local am="apps/axis_matrix.rs"
+  [[ -f "$gs" && -f "$am" ]] || return 0
+
+  local run=0
+  for mod in "${MODULES[@]}"; do
+    if [[ "$mod" == "giant_steps" || "$mod" == "axis_matrix" ]]; then
+      run=1
+      break
+    fi
+  done
+  [[ "$run" -eq 1 ]] || return 0
+
+  while IFS= read -r line; do
+    warn "$line"
+  done < <(python3 - "$gs" "$am" <<'PY'
+import re, sys
+
+GS, AM = sys.argv[1], sys.argv[2]
+text_gs = open(GS, encoding="utf-8").read()
+text_am = open(AM, encoding="utf-8").read()
+
+
+def extract_mod(text: str, name: str) -> str | None:
+    m = re.search(rf"^\s*mod\s+{re.escape(name)}\s*\{{", text, re.M)
+    if not m:
+        return None
+    i = m.end() - 1
+    depth = 0
+    for j in range(i, len(text)):
+        c = text[j]
+        if c == "{":
+            depth += 1
+        elif c == "}":
+            depth -= 1
+            if depth == 0:
+                return text[m.start() : j + 1]
+    return None
+
+
+def emit(msg: str) -> None:
+    print(msg)
+
+
+SHARED = ("coltrane_geo", "follow_key", "groove")
+for name in SHARED:
+    a = extract_mod(text_gs, name)
+    b = extract_mod(text_am, name)
+    if a is not None and b is not None and a.strip() != b.strip():
+        emit(
+            f"giant_steps.rs vs axis_matrix.rs: inline mod {name} differs "
+            "— keep shared Coltrane modules in sync (#47)"
+        )
+
+FORBIDDEN = ("genre_palette", "led_fx")
+for path, text in ((GS, text_gs), (AM, text_am)):
+    base = path.split("/")[-1]
+    for name in FORBIDDEN:
+        if extract_mod(text, name) is not None:
+            emit(
+                f"{base}: inline mod {name} reappeared "
+                "— use shared modules instead of duplicating (#47)"
+            )
+PY
+)
+}
+
 for mod in "${MODULES[@]}"; do
   check_file "$mod"
 done
+
+check_coltrane_inline_drift
 
 echo "---"
 if [[ "$HARD" -ne 0 ]]; then
