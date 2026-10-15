@@ -808,13 +808,13 @@ pub async fn run(
     let erase_flash = app.make_global(false);
     let bars_flash = app.make_global(false);
     let live_note = app.make_global(None::<u8>);
-    let rec_open = app.make_global(false);
+    let rec_open = app.make_global(0u128);
     let voices = app.make_global([(0u8, 0u16, 0u32); POLY]);
     let glob_ticks = app.make_global(0u64);
     let glob_clock_reset = app.make_global(false);
     let glob_clock_stop = app.make_global(false);
     let glob_clock_start = app.make_global(false);
-    let rng_glob = app.make_global((0x00C0_FFEEu32).wrapping_mul(1));
+    let rng_glob = app.make_global(0x00C0_FFEEu32);
 
     if muted.get() {
         leds.set(0, Led::Button, Color::Red, Brightness::Low);
@@ -1185,7 +1185,7 @@ pub async fn run(
                         if let Some(n) = live_note.get() {
                             midi.send_note_off(MidiNote::from(n)).await;
                             live_note.set(None);
-                            rec_open.set(false);
+                            rec_open.set(0);
                         }
                         muted.set(true);
                         storage.modify_and_save(|s| s.muted = true);
@@ -1592,6 +1592,14 @@ async fn update_cv_out(
     }
 }
 
+fn rec_open_mask(note: u8) -> u128 {
+    1u128 << note
+}
+
+fn rec_is_open(bits: u128, note: u8) -> bool {
+    bits & rec_open_mask(note) != 0
+}
+
 #[allow(clippy::too_many_arguments)]
 async fn start_note(
     midi: &MidiOutput,
@@ -1599,7 +1607,7 @@ async fn start_note(
     bars_glob: &Global<u8>,
     armed: &Global<bool>,
     live_note: &Global<Option<u8>>,
-    rec_open: &Global<bool>,
+    rec_open: &Global<u128>,
     flash_until: &Global<u64>,
     glob_ticks: &Global<u64>,
     note: u8,
@@ -1635,7 +1643,7 @@ async fn start_note(
         let qpos = quantize_16th(pos) % window;
         b.add_or_refresh(qpos, u16::MAX, note, vel, window);
         buf.set(b);
-        rec_open.set(true);
+        rec_open.set(rec_open.get() | rec_open_mask(note));
         flash_until.set(tick.wrapping_add(CAPTURE_FLASH_TICKS));
     }
 }
@@ -1648,7 +1656,7 @@ async fn retune_live(
     bars_glob: &Global<u8>,
     armed: &Global<bool>,
     live_note: &Global<Option<u8>>,
-    rec_open: &Global<bool>,
+    rec_open: &Global<u128>,
     flash_until: &Global<u64>,
     glob_ticks: &Global<u64>,
     note: u8,
@@ -1664,7 +1672,7 @@ async fn retune_live(
     }
     // Finalize the previous open event so glide steps become short recorded notes.
     if let Some(old) = live_note.get() {
-        if armed.get() && rec_open.get() {
+        if armed.get() && rec_is_open(rec_open.get(), old) {
             let tick = glob_ticks.get();
             let bars = bars_glob.get();
             let window = LoopBuf::window_ticks(bars).max(1);
@@ -1682,7 +1690,7 @@ async fn retune_live(
                 }
             }
             buf.set(b);
-            rec_open.set(false);
+            rec_open.set(rec_open.get() & !rec_open_mask(old));
         }
         midi.send_note_off(MidiNote::from(old)).await;
         live_note.set(None);
@@ -1713,7 +1721,7 @@ async fn note_off(
     buf: &Global<LoopBuf>,
     bars_glob: &Global<u8>,
     live_note: &Global<Option<u8>>,
-    rec_open: &Global<bool>,
+    rec_open: &Global<u128>,
     armed: &Global<bool>,
     glob_ticks: &Global<u64>,
     out_jack: Option<&OutJack>,
@@ -1734,7 +1742,7 @@ async fn end_specific(
     buf: &Global<LoopBuf>,
     bars_glob: &Global<u8>,
     live_note: &Global<Option<u8>>,
-    rec_open: &Global<bool>,
+    rec_open: &Global<u128>,
     armed: &Global<bool>,
     glob_ticks: &Global<u64>,
     note: u8,
@@ -1747,7 +1755,7 @@ async fn end_specific(
             j.set_value(0);
         }
     }
-    if armed.get() && rec_open.get() {
+    if armed.get() && rec_is_open(rec_open.get(), note) {
         let tick = glob_ticks.get();
         let bars = bars_glob.get();
         let window = LoopBuf::window_ticks(bars).max(1);
@@ -1765,6 +1773,6 @@ async fn end_specific(
             }
         }
         buf.set(b);
-        rec_open.set(false);
+        rec_open.set(rec_open.get() & !rec_open_mask(note));
     }
 }
