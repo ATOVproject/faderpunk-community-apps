@@ -16,7 +16,8 @@ use libfp::{
 };
 
 use crate::app::{
-    App, AppParams, AppStorage, Die, Led, ManagedStorage, ParamStore, SceneEvent,
+    App, AppParams, AppStorage, ClockDivision, ClockEvent, Die, Led, ManagedStorage, ParamStore,
+    SceneEvent,
 };
 use self::genre_palette::{genre_fader_center, GENRE_NAMES, GENRE_PROG_8, NUM_GENRES};
 use self::groove::{swing_bias, swing_delay_ticks};
@@ -1018,10 +1019,17 @@ pub async fn run(
     let fader = app.use_faders();
     let buttons = app.use_buttons();
     let leds = app.use_leds();
-    // Absolute tick, synchronous.
-    let ticks = || app.current_tick().unwrap_or(0);
+    let glob_tick = app.make_global(app.current_tick().unwrap_or(0));
+    let ticks = || glob_tick.get();
     let die = app.use_die();
     let midi = app.use_midi_output(midi_out_cfg, midi_chan, false);
+
+    // Clear any note left sounding by a prior run() that was dropped mid-chord
+    // (e.g. on a param-change respawn).
+    const ALL_SOUND_OFF: u8 = 120;
+    const ALL_NOTES_OFF: u8 = 123;
+    midi.send_cc(MidiCc::from(ALL_SOUND_OFF), 0).await;
+    midi.send_cc(MidiCc::from(ALL_NOTES_OFF), 0).await;
     let out_jack = if jack_param == JACK_OUT {
         Some(app.make_out_jack(0, range).await)
     } else {
@@ -1261,35 +1269,15 @@ pub async fn run(
     };
 
     let clock_watch = async {
+        let mut clock = app.use_clock();
         let mut phrase_i: usize = 0;
         let mut harm_i: usize = 0;
         let mut segment_end: u32 = 0;
         let mut current_degree: u8 = glob_degree.get();
-        let mut last_tick = ticks();
-        let mut stall_ms = 0u16;
 
         loop {
-            app.delay_millis(1).await;
-            let t = ticks();
-            let mut do_stop = false;
-            if t == last_tick {
-                stall_ms = stall_ms.saturating_add(1);
-                if stall_ms == 250 {
-                    do_stop = true;
-                } else {
-                    continue;
-                }
-            } else if t < last_tick {
-                do_stop = true;
-                last_tick = t;
-                stall_ms = 0;
-            } else {
-                stall_ms = 0;
-                last_tick = t;
-            }
-
-            if do_stop {
-
+            match clock.wait_for_event(ClockDivision::_1).await {
+                ClockEvent::Reset | ClockEvent::Stop => {
                     pending_release.set(true);
                     pending_on_at.set(NO_AT);
                     pending_off_at.set(NO_AT);
@@ -1299,15 +1287,13 @@ pub async fn run(
                     if glob_clip_active.get() {
                         glob_clip_armed.set(true);
                     }
-                
-                continue;
-            }
-
-
+                }
+                ClockEvent::Tick(tick) => {
+                    glob_tick.set(tick);
                     if !(glob_mode_auto.get() && glob_auto_running.get()) {
                         continue;
                     }
-                    let clkn = ticks() as u32;
+                    let clkn = tick as u32;
 
                     // Deferred Auto note-on / gate-off (swing start + Feel length).
                     let on_at = pending_on_at.get();
@@ -1430,7 +1416,9 @@ pub async fn run(
                         segment_end = clkn.wrapping_add(total.max(1));
                         phrase_i = phrase_i.wrapping_add(1);
                     }
-                
+                }
+                _ => {}
+            }
         }
     };
 
