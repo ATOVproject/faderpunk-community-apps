@@ -20,6 +20,11 @@ import path from "node:path";
 import { renderToStaticMarkup } from "react-dom/server";
 
 import {
+  AppGrid,
+  EmbedPage,
+  type AppGridItem,
+} from "../.faderpunk/configurator/src/apps-embed/AppGrid";
+import {
   ManualApp,
   type ManualAppData,
 } from "../.faderpunk/configurator/src/components/manual/ManualApp";
@@ -198,4 +203,45 @@ ${body}
 fs.writeFileSync(path.join(outDir, "index.html"), html);
 console.log(
   `wrote ${path.join(outDir, "index.html")} (${entries.length} apps, ${downloadByApp.size} downloads)`,
+);
+
+// A compact icon grid of the same apps, for faderpunk.io to iframe at
+// /embed/. It reuses the grid component faderpunk.io/apps renders, so the
+// two look identical, and links each card to its entry on the catalogue
+// page. Unlike that page there's no resize script: the embedder gives
+// this one a fixed height.
+const gridApps: AppGridItem[] = entries.map((entry) => {
+  const manual = manualById.get(entry.appId)!;
+  return {
+    id: entry.appId,
+    name: manual.title,
+    description: manual.description,
+    color: manual.color,
+    icon: manual.icon,
+    href: `${base}#app-${entry.appId}`,
+  };
+});
+
+const embedHtml = `<!doctype html>
+<html lang="en" class="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Faderpunk Community Apps</title>
+<link rel="stylesheet" href="${base}styles.css">
+</head>
+<body>
+${renderToStaticMarkup(
+  <EmbedPage>
+    <AppGrid apps={gridApps} />
+  </EmbedPage>,
+)}
+</body>
+</html>
+`;
+
+fs.mkdirSync(path.join(outDir, "embed"), { recursive: true });
+fs.writeFileSync(path.join(outDir, "embed", "index.html"), embedHtml);
+console.log(
+  `wrote ${path.join(outDir, "embed", "index.html")} (${gridApps.length} apps)`,
 );
