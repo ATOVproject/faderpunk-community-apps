@@ -19,6 +19,11 @@ Browse what each community app does before building anything: **[the community m
 
 Community app IDs start at 100 (official apps use 1–99) and are permanent once assigned.
 
+## Before you push
+
+Run `./scripts/pre-pr-app-check.sh <module>` on each app you changed, then
+`make fpapps` — see [CONTRIBUTING.md](CONTRIBUTING.md) “Before opening a PR”.
+
 ## Build installable apps
 
 Clone this repository and Faderpunk next to one another, then build every
