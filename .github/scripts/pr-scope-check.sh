@@ -17,10 +17,25 @@
 # `head_sources` is optional. Without it, the whole-file heuristics fall back
 # to the diff's added lines, which is the full file for a new app.
 #
-# Two PR scopes are recognised, decided from the file list:
-#   submission — adds exactly one new apps/<name>.rs, plus one new entry each
-#                in apps-catalog.json and manual-tab.json
-#   app fix    — modifies one or more existing apps/<name>.rs and nothing else
+# Three more fixture fields drive the ownership and overlap rules:
+#   "pr_author":   the PR opener's GitHub login (empty/missing = unknown, which
+#                  hard-fails the scopes that need to know who is asking)
+#   "maintainers": logins from .github/MAINTAINERS *at the PR's base commit* —
+#                  never the PR head, so a PR cannot promote itself. Missing or
+#                  empty means nobody is a maintainer (fail-closed).
+#   "overlaps":    optional { "<file>": [other open PR numbers] }, soft-flag only
+#
+# Five PR scopes are recognised, decided from the file list (anything that
+# fits none of them is a hard-fail, so red CI always means a real problem):
+#   submission         — adds exactly one new apps/<name>.rs, plus one new entry
+#                        each in apps-catalog.json and manual-tab.json
+#   app fix            — modifies one or more existing apps/<name>.rs and nothing else
+#   manual edit        — changes existing manual-tab.json entries and nothing else;
+#                        only the app's catalog author or a maintainer
+#   version bump       — changes only `version` on one or more existing
+#                        apps-catalog.json entries; same ownership rule
+#   maintainer change  — touches only the maintainer-owned paths in maint_re
+#                        below (KEEP IN SYNC with .github/CODEOWNERS)
 #
 # Never checks out or executes submitted code — only inspects the diff
 # text and the two JSON data files, which is what makes this safe to run
@@ -41,6 +56,35 @@ soft_flags=()
 
 hard_fail() { hard_fails+=("$1"); }
 soft_flag() { soft_flags+=("$1"); }
+
+pr_author=$(jq -r '.pr_author // empty' "$FIXTURE")
+
+# True (exit 0) if login $1 is in the base-commit maintainer list. Logins are
+# case-insensitive on GitHub; an empty login never matches.
+is_maintainer() {
+  [ -n "$1" ] || return 1
+  jq -e --arg a "$1" '(.maintainers // []) | map(ascii_downcase) | index($a | ascii_downcase) != null' "$FIXTURE" >/dev/null
+}
+
+# Hard rule for metadata edits (manual entries, versions): only the app's
+# catalog author or a maintainer may change it. $1 = appId, $2 = what is
+# being changed, for the message. A missing author is reported once by the
+# caller (see `need_author`), not per entry.
+require_owner() {
+  local id="$1" what="$2" owner
+  [ -n "$pr_author" ] || return 0
+  is_maintainer "$pr_author" && return 0
+  owner=$(jq -r --argjson id "$id" '[.base_catalog[] | select(.appId == $id)] | .[0].author // empty' "$FIXTURE")
+  if [ -z "$owner" ]; then
+    hard_fail "$what: appId $id has no author in apps-catalog.json, so only a maintainer may change it"
+  elif [ "${owner,,}" != "${pr_author,,}" ]; then
+    hard_fail "$what: only the app's author ($owner) or a maintainer may change it (PR author: $pr_author)"
+  fi
+}
+
+need_author() {
+  [ -n "$pr_author" ] || hard_fail "PR author unknown — cannot verify who may change $1"
+}
 
 # True (exit 0) if version $1 is strictly greater than $2, comparing
 # major.minor.patch numerically per component. Both must already be
@@ -70,12 +114,24 @@ other_app_changes=$(jq -r --arg re "$app_re" '
 ' "$FIXTURE")
 catalog_files=$(jq -r '.files[] | select(.filename == "apps-catalog.json") | .filename' "$FIXTURE")
 manual_files=$(jq -r '.files[] | select(.filename == "manual-tab.json") | .filename' "$FIXTURE")
-other_files=$(jq -r --arg re "$app_re" '
+# Everything that is neither an app file nor one of the two data files. Split
+# into the maintainer-owned allowlist and the rest. The allowlist is an
+# explicit list, never "everything else": a stray apps/Foo.rs, apps/sub/x.rs
+# or new root file must not be waved through as a maintainer change.
+# KEEP IN SYNC with .github/CODEOWNERS (same paths, same owner).
+maint_re='^(\.github/|scripts/|tools/|Makefile$|[a-z-]+\.schema\.json$|CONTRIBUTING\.md$|README\.md$|\.gitignore$)'
+maint_files=$(jq -r --arg re "$maint_re" '
+  .files[]
+  | select(.filename | test($re))
+  | .filename
+' "$FIXTURE")
+bad_files=$(jq -r --arg re "$app_re" --arg mre "$maint_re" '
   .files[]
   | select(
       (.filename | test($re) | not)
       and (.filename != "apps-catalog.json")
       and (.filename != "manual-tab.json")
+      and (.filename | test($mre) | not)
     )
   | .filename
 ' "$FIXTURE")
@@ -85,9 +141,10 @@ added_count=$(echo -n "$added_apps" | grep -c . || true)
 modified_count=$(echo -n "$modified_apps" | grep -c . || true)
 catalog_count=$(echo -n "$catalog_files" | grep -c . || true)
 manual_count=$(echo -n "$manual_files" | grep -c . || true)
+maint_count=$(echo -n "$maint_files" | grep -c . || true)
 
-if [ -n "$other_files" ]; then
-  hard_fail "touches file(s) outside apps/, apps-catalog.json, and manual-tab.json: $(echo "$other_files" | tr '\n' ' ')"
+if [ -n "$bad_files" ]; then
+  hard_fail "touches path(s) not allowed in any PR kind: $(echo "$bad_files" | paste -sd' ' -) — allowed are apps/<name>.rs, apps-catalog.json, manual-tab.json, and maintainer-owned files (.github/, scripts/, tools/, Makefile, *.schema.json, CONTRIBUTING.md, README.md, .gitignore)"
 fi
 if [ -n "$other_app_changes" ]; then
   hard_fail "removes or renames app file(s): $(echo "$other_app_changes" | tr '\n' ' ')— app IDs are permanent and saved layouts reference them"
@@ -95,20 +152,45 @@ fi
 
 module=""
 checked_apps=""
-if [ "$added_count" -eq 0 ] && [ "$modified_count" -gt 0 ]; then
+if [ "$maint_count" -gt 0 ]; then
+  if [ "$app_count" -ne 0 ] || [ "$catalog_count" -ne 0 ] || [ "$manual_count" -ne 0 ]; then
+    scope="mixed"
+    hard_fail "mixes maintainer-owned files ($(echo "$maint_files" | paste -sd' ' -)) with app, catalog or manual changes — split into separate PRs"
+  else
+    scope="maintainer change"
+    if ! is_maintainer "$pr_author"; then
+      soft_flag "maintainer-owned file(s) changed by ${pr_author:-an unknown author}, who is not a maintainer: $(echo "$maint_files" | paste -sd' ' -) — needs maintainer review (CODEOWNERS)"
+    fi
+  fi
+elif [ "$added_count" -eq 0 ] && [ "$modified_count" -gt 0 ]; then
   scope="app fix"
   checked_apps="$modified_apps"
   if [ "$catalog_count" -ne 0 ] || [ "$manual_count" -ne 0 ]; then
     hard_fail "an app fix may only modify existing apps/<name>.rs files — apps-catalog.json and manual-tab.json changes need their own PR"
   fi
+  # A fix to someone else's app is welcome, but its author should hear about it.
+  if ! is_maintainer "$pr_author"; then
+    for f in $modified_apps; do
+      fix_module=$(basename "$f" .rs)
+      fix_owner=$(jq -r --arg m "$fix_module" '[.base_catalog[] | select(.module == $m)] | .[0].author // empty' "$FIXTURE")
+      if [ -n "$fix_owner" ] && [ "${fix_owner,,}" != "${pr_author,,}" ]; then
+        soft_flag "$f: fix by ${pr_author:-an unknown author}, but the app's author is $fix_owner — ping them for review"
+      fi
+    done
+  fi
 elif [ "$app_count" -eq 0 ] && [ "$catalog_count" -eq 1 ] && [ "$manual_count" -eq 0 ]; then
   # No apps/*.rs touched at all, only apps-catalog.json — the shape a
   # version bump takes (see the "version bump" catalog validation below).
   # Anything else this shape could be (a catalog-only edit that isn't a
-  # clean single-field version bump) gets hard-failed there instead of
-  # here, so the one error message explains exactly what was wrong with
-  # the diff rather than just "wrong scope".
+  # clean version bump) gets hard-failed there instead of here, so the one
+  # error message explains exactly what was wrong with the diff rather
+  # than just "wrong scope".
   scope="version bump"
+elif [ "$app_count" -eq 0 ] && [ "$catalog_count" -eq 0 ] && [ "$manual_count" -eq 1 ]; then
+  # Only manual-tab.json: editing existing entries (see section 4b).
+  scope="manual edit"
+elif [ -n "$bad_files" ] && [ "$app_count" -eq 0 ] && [ "$catalog_count" -eq 0 ] && [ "$manual_count" -eq 0 ]; then
+  scope="unrecognised"  # nothing but disallowed paths; already hard-failed above
 else
   scope="submission"
   if [ "$app_count" -ne 1 ]; then
@@ -237,6 +319,14 @@ if [ -n "$module" ]; then
 
     [ "$entry_module" = "$module" ] || hard_fail "apps-catalog.json entry's module ('$entry_module') doesn't match the submitted app ('$module')"
     [ -n "$entry_author" ] || hard_fail "apps-catalog.json entry is missing an author"
+    # Who may later edit this app's manual or version is decided by comparing
+    # this field with the PR author's login, so it has to BE the submitter's
+    # login (maintainers may submit on someone's behalf). An unknown PR author
+    # skips the check: CI always supplies it, and the legacy fixtures don't.
+    if [ -n "$entry_author" ] && [ -n "$pr_author" ] && ! is_maintainer "$pr_author" \
+        && [ "${entry_author,,}" != "${pr_author,,}" ]; then
+      hard_fail "apps-catalog.json entry's author ('$entry_author') must be the submitter's GitHub login ('$pr_author') — who may later edit this app's manual and version depends on it"
+    fi
     [[ "$entry_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || hard_fail "apps-catalog.json entry's version ('$entry_version') is not plain major.minor.patch"
 
     if ! [[ "$entry_id" =~ ^[0-9]+$ ]]; then
@@ -255,56 +345,89 @@ if [ -n "$module" ]; then
 fi
 
 # ---------------------------------------------------------------------------
-# 3b. Catalog validation — version bump scope: exactly one existing entry
-#     changed, only its `version` field, strictly increasing.
+# 3b. Catalog validation — version bump scope: one or more existing entries
+#     changed, each only in its `version` field, each strictly increasing,
+#     each by the app's author or a maintainer.
 # ---------------------------------------------------------------------------
 
 if [ "$scope" = "version bump" ]; then
+  need_author "version(s)"
   base_catalog=$(jq -c '.base_catalog' "$FIXTURE")
   head_catalog=$(jq -c '.head_catalog' "$FIXTURE")
 
   base_count=$(echo "$base_catalog" | jq 'length')
   head_count=$(echo "$head_catalog" | jq 'length')
-
-  removed=$(jq -c -n --argjson base "$base_catalog" --argjson head "$head_catalog" \
-    '[$base[] | select(. as $b | ($head | index($b)) == null)]')
-  added=$(jq -c -n --argjson base "$base_catalog" --argjson head "$head_catalog" \
-    '[$head[] | select(. as $h | ($base | index($h)) == null)]')
-  removed_count=$(echo "$removed" | jq 'length')
-  added_count_catalog=$(echo "$added" | jq 'length')
+  base_ids=$(echo "$base_catalog" | jq -c '[.[].appId]')
+  head_ids=$(echo "$head_catalog" | jq -c '[.[].appId]')
 
   if [ "$base_count" -ne "$head_count" ]; then
-    hard_fail "apps-catalog.json: a version bump may only change one existing entry, not add or remove entries (had $base_count, now $head_count)"
-  elif [ "$removed_count" -ne 1 ] || [ "$added_count_catalog" -ne 1 ]; then
-    hard_fail "apps-catalog.json: must change exactly one existing entry (found $removed_count changed)"
+    hard_fail "apps-catalog.json: a version bump may only change existing entries, not add or remove entries (had $base_count, now $head_count)"
+  elif [ "$base_ids" != "$head_ids" ]; then
+    hard_fail "apps-catalog.json: a version bump must not change, reorder or replace any appId"
   else
-    old_entry=$(echo "$removed" | jq -c '.[0]')
-    new_entry=$(echo "$added" | jq -c '.[0]')
-    old_id=$(echo "$old_entry" | jq -r '.appId')
-    new_id=$(echo "$new_entry" | jq -r '.appId')
-    old_version=$(echo "$old_entry" | jq -r '.version // empty')
-    new_version=$(echo "$new_entry" | jq -r '.version // empty')
-
-    same_except_version=$(jq -n --argjson a "$old_entry" --argjson b "$new_entry" \
-      '(($a | del(.version)) == ($b | del(.version)))')
-
-    if [ "$old_id" != "$new_id" ]; then
-      hard_fail "apps-catalog.json: the changed entry's appId must not change ($old_id -> $new_id)"
-    elif [ "$same_except_version" != "true" ]; then
-      hard_fail "apps-catalog.json: a version bump may only change the 'version' field — module/author/appId must stay identical"
-    elif ! [[ "$new_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-      hard_fail "apps-catalog.json: new version ('$new_version') is not plain major.minor.patch"
-    elif ! semver_gt "$new_version" "$old_version"; then
-      hard_fail "apps-catalog.json: new version ('$new_version') must be strictly greater than the previous version ('$old_version')"
+    changed=$(jq -c -n --argjson b "$base_catalog" --argjson h "$head_catalog" \
+      '[range(0; $b | length) | select($b[.] != $h[.])]')
+    changed_count=$(echo "$changed" | jq 'length')
+    if [ "$changed_count" -eq 0 ]; then
+      hard_fail "apps-catalog.json: must change at least one existing entry (found 0 changed)"
     fi
+
+    for i in $(echo "$changed" | jq -r '.[]'); do
+      old_entry=$(echo "$base_catalog" | jq -c ".[$i]")
+      new_entry=$(echo "$head_catalog" | jq -c ".[$i]")
+      entry_id=$(echo "$new_entry" | jq -r '.appId')
+      old_version=$(echo "$old_entry" | jq -r '.version // empty')
+      new_version=$(echo "$new_entry" | jq -r '.version // empty')
+
+      same_except_version=$(jq -n --argjson a "$old_entry" --argjson b "$new_entry" \
+        '(($a | del(.version)) == ($b | del(.version)))')
+
+      if [ "$same_except_version" != "true" ]; then
+        hard_fail "apps-catalog.json (appId $entry_id): a version bump may only change the 'version' field — module/author/appId must stay identical"
+      elif ! [[ "$new_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        hard_fail "apps-catalog.json (appId $entry_id): new version ('$new_version') is not plain major.minor.patch"
+      elif ! [[ "$old_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        hard_fail "apps-catalog.json (appId $entry_id): previous version ('$old_version') is not plain major.minor.patch"
+      elif ! semver_gt "$new_version" "$old_version"; then
+        hard_fail "apps-catalog.json (appId $entry_id): new version ('$new_version') must be strictly greater than the previous version ('$old_version')"
+      fi
+      require_owner "$entry_id" "apps-catalog.json (appId $entry_id) version"
+    done
   fi
 fi
 
 # ---------------------------------------------------------------------------
-# 4. manual-tab.json validation — appends-only, exactly one new entry,
-#    appId must match the catalog entry, required fields present
+# 4. manual-tab.json entry validation, shared by submissions (the new entry)
+#    and manual edits (every changed entry)
 # ---------------------------------------------------------------------------
 
+# $1 = entry JSON, $2 = label used in messages. The wording after the label
+# is asserted by the test harness, keep it stable.
+check_manual_entry() {
+  local mentry="$1" label="$2" field val channel_count missing_channel_fields
+  for field in title description icon color text; do
+    val=$(echo "$mentry" | jq -r --arg f "$field" '.[$f] // empty')
+    [ -n "$val" ] || hard_fail "$label is missing required field '$field'"
+  done
+
+  channel_count=$(echo "$mentry" | jq '.channels // [] | length')
+  if [ "$channel_count" -lt 1 ]; then
+    hard_fail "$label must have at least one channel entry"
+  else
+    missing_channel_fields=$(echo "$mentry" | jq -r '
+      [.channels[]
+        | select(
+            (has("jackTitle") and has("jackDescription") and has("faderTitle")
+             and has("faderDescription") and has("ledTop") and has("ledBottom"))
+            | not
+          )
+      ] | length
+    ')
+    [ "$missing_channel_fields" -eq 0 ] || hard_fail "$label has a channel missing required fields (jackTitle/jackDescription/faderTitle/faderDescription/ledTop/ledBottom)"
+  fi
+}
+
+# Submission: appends-only, exactly one new entry, appId must match the catalog entry.
 if [ -n "$module" ]; then
   base_manual=$(jq -c '.base_manual_tab' "$FIXTURE")
   head_manual=$(jq -c '.head_manual_tab' "$FIXTURE")
@@ -329,27 +452,61 @@ if [ -n "$module" ]; then
       [ "$mentry_id" = "$catalog_id" ] || hard_fail "manual-tab.json entry's appId ($mentry_id) doesn't match apps-catalog.json's ($catalog_id)"
     fi
 
-    for field in title description icon color text; do
-      val=$(echo "$mentry" | jq -r --arg f "$field" '.[$f] // empty')
-      [ -n "$val" ] || hard_fail "manual-tab.json entry is missing required field '$field'"
-    done
-
-    channel_count=$(echo "$mentry" | jq '.channels // [] | length')
-    if [ "$channel_count" -lt 1 ]; then
-      hard_fail "manual-tab.json entry must have at least one channel entry"
-    else
-      missing_channel_fields=$(echo "$mentry" | jq -r '
-        [.channels[]
-          | select(
-              (has("jackTitle") and has("jackDescription") and has("faderTitle")
-               and has("faderDescription") and has("ledTop") and has("ledBottom"))
-              | not
-            )
-        ] | length
-      ')
-      [ "$missing_channel_fields" -eq 0 ] || hard_fail "manual-tab.json entry has a channel missing required fields (jackTitle/jackDescription/faderTitle/faderDescription/ledTop/ledBottom)"
-    fi
+    check_manual_entry "$mentry" "manual-tab.json entry"
   fi
+fi
+
+# ---------------------------------------------------------------------------
+# 4b. Manual edit scope: existing entries change, nothing is added, removed
+#     or reordered, appId and title stay put, each changed entry is still
+#     valid, and each belongs to the PR author (or the PR author is a maintainer).
+# ---------------------------------------------------------------------------
+
+if [ "$scope" = "manual edit" ]; then
+  need_author "manual entries"
+  base_manual=$(jq -c '.base_manual_tab' "$FIXTURE")
+  head_manual=$(jq -c '.head_manual_tab' "$FIXTURE")
+  base_ids=$(echo "$base_manual" | jq -c '[.[].appId]')
+  head_ids=$(echo "$head_manual" | jq -c '[.[].appId]')
+
+  if [ "$base_ids" != "$head_ids" ]; then
+    hard_fail "manual-tab.json: entries may not be added, removed or reordered in a manual edit — only the content of existing entries may change"
+  else
+    changed=$(jq -c -n --argjson b "$base_manual" --argjson h "$head_manual" \
+      '[range(0; $b | length) | select($b[.] != $h[.])]')
+    if [ "$(echo "$changed" | jq 'length')" -eq 0 ]; then
+      hard_fail "manual-tab.json: no entry changed"
+    fi
+
+    for i in $(echo "$changed" | jq -r '.[]'); do
+      old_entry=$(echo "$base_manual" | jq -c ".[$i]")
+      new_entry=$(echo "$head_manual" | jq -c ".[$i]")
+      entry_id=$(echo "$new_entry" | jq -r '.appId')
+      label="manual-tab.json entry for appId $entry_id"
+
+      if [ "$(echo "$old_entry" | jq -r '.title')" != "$(echo "$new_entry" | jq -r '.title')" ]; then
+        hard_fail "$label: the title must not change in a manual edit"
+      fi
+      check_manual_entry "$new_entry" "$label"
+      require_owner "$entry_id" "$label"
+    done
+  fi
+fi
+
+# ---------------------------------------------------------------------------
+# 5. Overlap with other open PRs — advisory only
+# ---------------------------------------------------------------------------
+
+overlap_lines=$(jq -r '
+  (.overlaps // {}) as $o
+  | .files[].filename
+  | select($o[.] != null)
+  | "\(.)\t\($o[.] | map("#\(.)") | join(", "))"
+' "$FIXTURE")
+if [ -n "$overlap_lines" ]; then
+  while IFS=$'\t' read -r f prs; do
+    soft_flag "$f: also changed by open PR(s) $prs — agree a merge order in the PR descriptions; the later one rebases"
+  done <<<"$overlap_lines"
 fi
 
 # ---------------------------------------------------------------------------
@@ -360,6 +517,9 @@ fi
   echo "## Community app submission scope check"
   echo
   echo "Scope: **$scope**"
+  echo
+  if is_maintainer "$pr_author"; then role="maintainer"; else role="not a maintainer"; fi
+  echo "PR author: \`${pr_author:-unknown}\` ($role). Maintainers at the base commit: $(jq -r '(.maintainers // []) | if length == 0 then "none" else join(", ") end' "$FIXTURE")"
   echo
   if [ ${#hard_fails[@]} -eq 0 ]; then
     echo "**No hard-fails.**"
