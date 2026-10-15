@@ -200,7 +200,7 @@ pub struct Storage {
     alt: [u16; 4],
     third: [u16; 4],
     #[serde(default)]
-    cv_dest: [LatchLayer; 4],
+    cv_dest: [u8; 4], // default [0; 4] — 0=Main, 1=Alt, 2=Third
 }
 
 impl Default for Storage {
@@ -209,7 +209,7 @@ impl Default for Storage {
             main: [4095, 4095, 4095, 4095],
             alt: [4095, 4095, 4095, 4095],
             third: [4095, 4095, 4095, 4095],
-            cv_dest: [LatchLayer::Main; 4],
+            cv_dest: [0; 4],
         }
     }
 }
@@ -232,11 +232,19 @@ fn mod_with_input(base: u16, in_val: u16) -> u16 {
     (base as i32 + in_val as i32 - 2047).clamp(0, 4095) as u16
 }
 
-fn cycle_cv_dest(layer: LatchLayer) -> LatchLayer {
-    match layer {
-        LatchLayer::Main => LatchLayer::Alt,
-        LatchLayer::Alt => LatchLayer::Third,
-        LatchLayer::Third => LatchLayer::Main,
+fn dest_layer(slot: u8) -> LatchLayer {
+    match slot {
+        1 => LatchLayer::Alt,
+        2 => LatchLayer::Third,
+        _ => LatchLayer::Main,
+    }
+}
+
+fn cycle_cv_dest_slot(slot: u8) -> u8 {
+    match slot {
+        0 => 1,
+        1 => 2,
+        _ => 0,
     }
 }
 
@@ -409,8 +417,8 @@ pub async fn run(
             for fader in 0..CHANNELS {
                 let ui_layer = layers[fader];
                 let (dest_layer, dest_base) = storage.query(|s| {
-                    let dest = s.cv_dest[fader];
-                    (dest, value_for(s, dest, fader))
+                    let layer = dest_layer(s.cv_dest[fader]);
+                    (layer, value_for(s, layer, fader))
                 });
                 let cv = cv_in[fader].get_value();
                 let dest_val = mod_with_input(dest_base, cv);
@@ -450,16 +458,16 @@ pub async fn run(
             let flash_until = dest_flash_until_glob.get();
             let now = Instant::now();
             for ch in 0..CHANNELS {
-                let dest_layer = storage.query(|s| s.cv_dest[ch]);
+                let cv_dest_layer = storage.query(|s| dest_layer(s.cv_dest[ch]));
                 let base = storage.query(|s| value_for(s, layer, ch));
-                let val = if layer == dest_layer {
+                let val = if layer == cv_dest_layer {
                     mod_with_input(base, cv_in[ch].get_value())
                 } else {
                     base
                 };
                 let led = split_unsigned_value(val);
                 let ui_accent = layer_accent(layer, color);
-                let dest_accent = layer_accent(dest_layer, color);
+                let dest_accent = layer_accent(cv_dest_layer, color);
                 let flashing = now < flash_until[ch];
                 let button_color = if flashing { dest_accent } else { ui_accent };
                 let button_brightness = if flashing {
@@ -555,7 +563,7 @@ pub async fn run(
                 continue;
             }
             storage.modify_and_save(|s| {
-                s.cv_dest[chan] = cycle_cv_dest(s.cv_dest[chan]);
+                s.cv_dest[chan] = cycle_cv_dest_slot(s.cv_dest[chan]);
             });
             dest_flash_until_glob.modify(|d| {
                 let mut d = *d;
