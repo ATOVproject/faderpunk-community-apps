@@ -1,0 +1,62 @@
+{
+  "files": [
+    {
+      "filename": "apps/test_clean.rs",
+      "status": "modified",
+      "additions": 1,
+      "deletions": 1,
+      "patch": "@@ -12,7 +12,7 @@ pub async fn run(app: &App<CHANNELS>) {\n     loop {\n-        app.use_buttons().wait_for_down(0).await;\n+        app.use_buttons().wait_for_down(1).await;\n     }\n }"
+    },
+    {
+      "filename": "apps/test_other.rs",
+      "status": "modified",
+      "additions": 1,
+      "deletions": 1,
+      "patch": "@@ -12,7 +12,7 @@ pub async fn run(app: &App<CHANNELS>) {\n     loop {\n-        app.use_buttons().wait_for_down(0).await;\n+        app.use_buttons().wait_for_down(1).await;\n     }\n }"
+    }
+  ],
+  "base_catalog": [
+    {
+      "appId": 100,
+      "module": "test_clean",
+      "author": "alice",
+      "version": "0.1.0"
+    },
+    {
+      "appId": 101,
+      "module": "test_other",
+      "author": "bob",
+      "version": "0.1.0"
+    }
+  ],
+  "head_catalog": [
+    {
+      "appId": 100,
+      "module": "test_clean",
+      "author": "alice",
+      "version": "0.1.0"
+    },
+    {
+      "appId": 101,
+      "module": "test_other",
+      "author": "bob",
+      "version": "0.1.0"
+    }
+  ],
+  "base_manual_tab": [],
+  "head_manual_tab": [],
+  "head_sources": {
+    "apps/test_clean.rs": "use crate::app::{App, ParamStore};\n\npub const CHANNELS: usize = 1;\n\npub static CONFIG: Config<2> = Config::new(\"Test Clean\", \"A clean POC submission\", Color::Blue, AppIcon::Fader)\n    .add_param(Param::Color { name: \"Color\", variants: &[Color::Blue, Color::Green] })\n    .add_param(Param::bool { name: \"Invert\" });\n\npub async fn wrapper(app: App<CHANNELS>, params: ParamStore<Params>) {\n    select(run(&app), params.param_handler()).await;\n}\n\npub async fn run(app: &App<CHANNELS>) {\n    loop {\n        app.use_buttons().wait_for_down(0).await;\n    }\n}\n",
+    "apps/test_other.rs": "use crate::app::{App, ParamStore};\n\npub const CHANNELS: usize = 1;\n\npub static CONFIG: Config<2> = Config::new(\"Test Clean\", \"A clean POC submission\", Color::Blue, AppIcon::Fader)\n    .add_param(Param::Color { name: \"Color\", variants: &[Color::Blue, Color::Green] })\n    .add_param(Param::bool { name: \"Invert\" });\n\npub async fn wrapper(app: App<CHANNELS>, params: ParamStore<Params>) {\n    select(run(&app), params.param_handler()).await;\n}\n\npub async fn run(app: &App<CHANNELS>) {\n    loop {\n        app.use_buttons().wait_for_down(0).await;\n    }\n}\n"
+  },
+  "pr_author": "alice",
+  "maintainers": [
+    "alice"
+  ],
+  "overlaps": {
+    "apps/test_clean.rs": [
+      88,
+      91
+    ]
+  }
+}
