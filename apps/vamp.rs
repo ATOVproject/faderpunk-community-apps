@@ -11,13 +11,12 @@ use libfp::{
     latch::LatchLayer,
     quantizer::Pitch,
     utils::{attenuate_bipolar, split_unsigned_value, value_to_index},
-    AppIcon, Brightness, Color, Config, Key, MidiCc, MidiChannel, MidiNote, MidiOut,
+    AppIcon, Brightness, ClockDivision, Color, Config, Key, MidiCc, MidiChannel, MidiNote, MidiOut,
     Note, Param, Range, Value, VoltPerOct, APP_MAX_PARAMS,
 };
 
 use crate::app::{
-    App, AppParams, AppStorage, ClockDivision, ClockEvent, Die, Led, ManagedStorage, ParamStore,
-    SceneEvent,
+    App, AppParams, AppStorage, ClockEvent, Die, Led, ManagedStorage, ParamStore, SceneEvent,
 };
 use self::genre_palette::{genre_fader_center, GENRE_NAMES, GENRE_PROG_8, NUM_GENRES};
 use self::groove::{swing_bias, swing_delay_ticks};
