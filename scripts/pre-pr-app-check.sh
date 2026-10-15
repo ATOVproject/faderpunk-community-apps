@@ -11,7 +11,14 @@
 
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+# Prefer the caller's cwd when it looks like the repo root (so the script
+# can be invoked as /path/to/pre-pr-app-check.sh from a worktree). Fall back
+# to the script's parent directory (normal: ./scripts/pre-pr-app-check.sh).
+if [[ -d "$PWD/apps" ]]; then
+  ROOT="$PWD"
+else
+  ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+fi
 cd "$ROOT"
 
 STRICT=0
