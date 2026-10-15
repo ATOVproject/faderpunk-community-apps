@@ -7,6 +7,7 @@
    be tree-shaken out of the emitted CSS. */
 @source "./entry.tsx";
 @source "../.faderpunk/configurator/src/components/manual";
+@source "../.faderpunk/configurator/src/apps-embed/AppGrid.tsx";
 @source "../.faderpunk/configurator/src/components/Icon.tsx";
 @source "../.faderpunk/configurator/src/utils/class-helpers.ts";
 
