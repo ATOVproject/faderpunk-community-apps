@@ -39,6 +39,10 @@ const SPEED_DIVS: [u32; 10] = [96, 48, 36, 24, 18, 16, 12, 8, 6, 3];
 const SPEED_COUNT: u8 = SPEED_DIVS.len() as u8;
 /// Default Speed enum index = 16th (div 6).
 const SPEED_DEFAULT: u8 = 8;
+/// Output-mode count (Note / CC / Pitch / Phi).
+const MODE_COUNT: u8 = 4;
+/// Follow the Mode param unless Shift+long overrides on device.
+const OUT_MODE_FOLLOW_PARAM: u8 = 255;
 
 /// Output modes, cycled on the device via shift + long press.
 const MODE_GATE_NOTE: u8 = 0;
@@ -204,7 +208,7 @@ pub struct Storage {
     shift_fader_saved: u16,
     muted: bool,
     reversed: bool,
-    /// 0 = gate+note, 1 = gate+CC, 2 = pitch 12-TET, 3 = pitch φ.
+    /// 0..=3 = gate+note / gate+CC / pitch 12-TET / pitch φ; 255 = follow Mode param.
     out_mode: u8,
     /// Speed index into `SPEED_DIVS` (0..=9); 255 = follow the Speed param.
     speed_saved: u8,
@@ -217,7 +221,7 @@ impl Default for Storage {
             shift_fader_saved: 2048,
             muted: false,
             reversed: false,
-            out_mode: MODE_GATE_NOTE,
+            out_mode: OUT_MODE_FOLLOW_PARAM,
             speed_saved: 255,
         }
     }
@@ -326,6 +330,14 @@ fn note_and_bend(base: MidiNote, cents_offset: u32) -> (MidiNote, u16) {
 
 fn is_pitch_mode(mode: u8) -> bool {
     mode == MODE_PITCH || mode == MODE_PITCH_PHI
+}
+
+fn resolve_out_mode(stored: u8, param: u8) -> u8 {
+    if stored < MODE_COUNT {
+        stored
+    } else {
+        param.min(MODE_COUNT - 1)
+    }
 }
 
 fn div_for_speed(speed: u8) -> u32 {
@@ -445,8 +457,9 @@ pub async fn run(
     let glob_reverse_fade = app.make_global(0u16);
     // true = none→white, false = white→none.
     let glob_reverse_fade_up = app.make_global(false);
+    let glob_gate_low_pulse = app.make_global(false);
 
-    let (fader_saved, shift_fader_saved, muted, reversed, _stored_mode, speed_saved) =
+    let (fader_saved, shift_fader_saved, muted, reversed, stored_out_mode, speed_saved) =
         storage.query(|s| {
             (
                 s.fader_saved,
@@ -466,31 +479,13 @@ pub async fn run(
     let glob_clock_reset = app.make_global(false);
     let glob_clock_stop = app.make_global(false);
 
-    // Mode param is source of truth on spawn (configurator / editor / Shift+long
-    // all write it). Keep scene storage in sync so LoadScene stays coherent.
-    let out_mode = param_mode;
-    storage.modify_and_save(|s| s.out_mode = out_mode);
+    let out_mode = resolve_out_mode(stored_out_mode, param_mode);
 
     // One jack, one role: Note/CC → gate GPO; Pitch/Phi → pitch DAC; In → CV mod.
     // Do not configure DAC then GPO on the same port (that left Note mode silent
     // when the final GPO bring-up raced the DAC setup on some boots).
     // When Jack=CV In, skip outs entirely (MIDI-first).
-    let (cv_out, gate_out) = if cv_jack == CV_JACK_OUT {
-        if is_pitch_mode(out_mode) {
-            let j = app.make_out_jack(0, range).await;
-            j.set_value(0);
-            (Some(j), None)
-        } else {
-            let g = app.make_gate_jack(0, 4095).await;
-            // make_gate_jack drives the port high on configure; force known-off
-            // (also clears any note left sounding by a prior run() dropped
-            // mid-gate, e.g. on a param change respawn).
-            g.set_low().await;
-            (None, Some(g))
-        }
-    } else {
-        (None, None)
-    };
+    // Jack handles live in `clock_processor` so runtime mode switches can rebind.
     let cv_in = if cv_jack == CV_JACK_IN {
         Some(app.make_in_jack(0, Range::_Neg5_5V).await)
     } else {
@@ -557,8 +552,29 @@ pub async fn run(
         let mut gate_step = (div * gatel / 100).clamp(1, div - 1);
         let mut last_processed_tick: u64 = 0;
 
+        let mut cv_out = None;
+        let mut gate_out = None;
+        if cv_jack == CV_JACK_OUT {
+            if is_pitch_mode(cached_mode) {
+                let j = app.make_out_jack(0, range).await;
+                j.set_value(0);
+                cv_out = Some(j);
+            } else {
+                let g = app.make_gate_jack(0, 4095).await;
+                g.set_low().await;
+                gate_out = Some(g);
+            }
+        }
+
         loop {
             app.delay_millis(1).await;
+
+            if glob_gate_low_pulse.get() {
+                glob_gate_low_pulse.set(false);
+                if let Some(ref gate_jack) = gate_out {
+                    gate_jack.set_low().await;
+                }
+            }
 
             if glob_clock_reset.get() || glob_clock_stop.get() {
                 glob_clock_reset.set(false);
@@ -589,22 +605,19 @@ pub async fn run(
             last_processed_tick = tick;
             let clkn = tick as u32;
 
-            // Mode changed on the device: reconfigure the jack.
-            // Param save respawns run() shortly after; this covers the
-            // window until then (and keeps hardware in the right mode).
             let mode = glob_mode.get();
             if mode != cached_mode {
                 if cv_jack == CV_JACK_OUT {
                     if is_pitch_mode(mode) {
-                        app.make_out_jack(0, range).await;
-                        if let Some(ref j) = cv_out {
-                            j.set_value(0);
-                        }
+                        let j = app.make_out_jack(0, range).await;
+                        j.set_value(0);
+                        cv_out = Some(j);
+                        gate_out = None;
                     } else {
-                        app.make_gate_jack(0, 4095).await;
-                        if let Some(ref gate_jack) = gate_out {
-                            gate_jack.set_low().await;
-                        }
+                        let g = app.make_gate_jack(0, 4095).await;
+                        g.set_low().await;
+                        gate_out = Some(g);
+                        cv_out = None;
                     }
                 }
                 // Leaving φ mode: recenter any pitch bend left behind.
@@ -757,7 +770,7 @@ pub async fn run(
                         midi.send_note_off(note).await;
                         midi.send_cc(cc, 0).await;
                         if !is_pitch_mode(glob_mode.get()) {
-                            if let Some(ref gate_jack) = gate_out { gate_jack.set_low().await; }
+                            glob_gate_low_pulse.set(true);
                         }
                         leds.unset(0, Led::Button);
                         leds.unset(0, Led::Bottom);
@@ -864,7 +877,7 @@ pub async fn run(
 
                     glob_muted.set(muted);
                     glob_reversed.set(reversed);
-                    glob_mode.set(out_mode);
+                    glob_mode.set(resolve_out_mode(out_mode, param_mode));
                     if speed_saved < SPEED_COUNT {
                         glob_speed.set(speed_saved);
                     } else {
