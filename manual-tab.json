@@ -101,21 +101,21 @@
     "description": "MIDI/CV delay with feedback and pitch shift",
     "icon": "sine",
     "color": "Cyan",
-    "text": "Echolot is a MIDI/CV delay with feedback, mix, and optional pitch shift on each repeat.\n\n### Cheatsheet\n\nDelay with feedback and optional pitch intervals. I/O picks MIDI/CV routing; Ping-Pong alternates MIDI Out A/B (MIDI\u2192MIDI and CV\u2192MIDI). Mute = ring-out (block new input; queue plays out). Long Panic clears the trail \u2014 Third interval edits never panic that hold. MIDI In always flashes white for diagnosis when muted.\n\n**Faders**\n\n- **Main** \u2014 Delay (up = shorter / faster)\n\n**Buttons**\n\n- **Long** \u2014 Panic (clear queue); skipped if Third used this hold\n\n**LEDs**\n\n- White flash on MIDI/gate in (~20% when muted)\n- Ping-Pong: Top = Out A \u00b7 Bottom = Out B\n\n**Params**\n\n- Routing: Single / Ping-Pong",
+    "text": "Echolot is a MIDI/CV delay with feedback and optional pitch shift on each repeat.\n\n### Cheatsheet\n\n**Main** = delay (up = shorter). **Shift+Fader** = feedback retention. **Button+Fader** = interval (\u00b124 semitones; Interval mode sets Fixed / Stack / Bounce). I/O picks MIDI\u2194CV routing; Ping-Pong alternates MIDI Out A/B on MIDI\u2192MIDI and CV\u2192MIDI. **Short** = mute (block new input; queue rings out). **Long** = panic (clear queue) \u2014 skipped if you moved Third this hold. White **button** flash on MIDI/gate input (~20% peak when muted).\n\n**Faders**\n\n- **Main** \u2014 Delay (ms or clock ticks)\n- **Shift+Fader** \u2014 Feedback\n- **Button+Fader** \u2014 Interval per repeat\n\n**Buttons**\n\n- **Short** \u2014 Mute (ring-out)\n- **Long** \u2014 Panic; skipped after Third edit this hold\n\n**LEDs**\n\n- Main layer: delay meter + activity pulse (Ping-Pong: Top = Out A \u00b7 Bottom = Out B)\n- Alt: green feedback split \u00b7 Third: red interval up/down\n- Input activity: white flash on **button** LED",
     "channels": [
       {
         "jackTitle": "CV",
-        "jackDescription": "Role depends on I/O and Signal params.",
+        "jackDescription": "MIDI\u2192CV: pitch/gate/CC out. CV\u2192MIDI: gate or CV in. MIDI\u2192MIDI: no jack.",
         "faderTitle": "Delay",
-        "faderDescription": "Delay time or clock division.",
-        "faderPlusFnTitle": "Feedback/mix",
-        "faderPlusFnDescription": "Latch layers.",
-        "faderPlusShiftTitle": "Interval",
-        "faderPlusShiftDescription": "Pitch shift per repeat.",
-        "fnTitle": "Mute",
-        "fnDescription": "Short mute; long clears buffer.",
-        "ledTop": "Input activity",
-        "ledBottom": "Delay level"
+        "faderDescription": "Delay time (ms) or clock division \u2014 up = shorter.",
+        "faderPlusShiftTitle": "Feedback",
+        "faderPlusShiftDescription": "Echo feedback retention (quadratic curve).",
+        "faderPlusFnTitle": "Interval",
+        "faderPlusFnDescription": "Pitch shift per repeat; moving Third this hold blocks long panic.",
+        "fnTitle": "Mute / panic",
+        "fnDescription": "Short: mute (ring-out). Long: panic unless Third moved this hold.",
+        "ledTop": "Delay meter + Out A activity (Ping-Pong)",
+        "ledBottom": "Delay meter low half + Out B pulse (Ping-Pong)"
       }
     ],
     "params": [
@@ -127,20 +127,19 @@
       "Signal",
       "Range",
       "Color",
-      "MIDI Out",
-      "MIDI Channel",
-      "MIDI CC",
       "MIDI In",
-      "Feedback",
-      "Mix",
-      "Muted"
+      "MIDI In CH",
+      "MIDI Out",
+      "MIDI Out",
+      "MIDI Out Pong",
+      "MIDI CC",
+      "MIDI Note"
     ],
     "storage": [
-      "Delay",
-      "Interval",
-      "Feedback saved",
-      "Mix saved",
-      "Muted"
+      "delay_saved",
+      "feedback_saved",
+      "interval_saved",
+      "muted"
     ]
   },
   {
@@ -149,17 +148,21 @@
     "description": "Shape CV and send it as MIDI control",
     "icon": "attenuate",
     "color": "Pink",
-    "text": "Control Issues shapes CV (linear, log, exp, S-curve, rectify, fold) and sends MIDI CC or NRPN. Supports slew, quantization, and gate or continuous input modes.\n\n### Cheatsheet\n\n1-channel CV\u2192MIDI sculptor. Defaults are transparent (+100 % att, 0 offset, 0 slew, Linear, full CC window, 100 Hz). Gate mode runs a Schmitt threshold (0.1 V hysteresis) then the same pipeline. Mute sends Output Min once and goes silent; unmute resends the live value. Watch the button LED for level \u2014 fader LEDs stay dark. Uses clock ticker only (no CLOCK_PUBSUB). No clock \u2192 no downbeat blink.\n\n**Faders**\n\n- **Main** \u2014 Attenuverter \u2212100\u2026+100 % (center deadband = 0)\n\n**Buttons**\n\n- **Shift+Hold** \u2014 momentary Bypass (keeps Range / Min-Max / Rate)\n\n**Params / LEDs**\n\n- Button LED only: Main = app color \u00d7 out; Alt = red \u00d7 |offset|; Third = cyan \u00d7 slew (floor so hue stays visible at 0)",
+    "text": "Control Issues shapes CV (linear, log, exp, S-curve, rectify, fold) and sends MIDI CC or NRPN. Supports slew, quantization, and gate or continuous input modes.\n\n### Cheatsheet\n\n1-channel CV\u2192MIDI sculptor. Defaults are transparent (+100 % att, 0 offset, 0 slew, Linear, full CC window, 100 Hz). Gate mode runs a Schmitt threshold (Gate Threshold param, 0.1 V hysteresis) then the same pipeline. Mute sends Output Min once and goes silent; unmute resends the live value. Fader LEDs show the shaped output; the **button** LED blinks briefly on transport downbeat when clock is running.\n\n**Faders**\n\n- **Main** \u2014 Attenuverter \u2212100\u2026+100 % (center deadband = 0)\n- **Shift+Fader** \u2014 Offset\n- **Button+Fader** \u2014 Slew time\n\n**Buttons**\n\n- **Short** \u2014 Mute toggle\n- **Shift+Hold** \u2014 Momentary bypass (Range / Min\u2013Max / Rate stay active)\n\n**Params / LEDs**\n\n- Main: output window on Top/Bottom; Alt: red offset; Third: cyan slew on Top only",
     "channels": [
       {
-        "jackTitle": "CV In / Out",
-        "jackDescription": "Bipolar or unipolar CV in; shaped value as MIDI CC/NRPN.",
-        "faderTitle": "Slew / steps",
-        "faderDescription": "Main fader controls shaping parameters per latch layer.",
-        "fnTitle": "Mute / bypass",
-        "fnDescription": "Short tap mute; long bypass.",
-        "ledTop": "Output level",
-        "ledBottom": "Downbeat blink when clocked"
+        "jackTitle": "CV In",
+        "jackDescription": "Bipolar or unipolar CV in only \u2014 shaped to MIDI CC/NRPN.",
+        "faderTitle": "Attenuverter",
+        "faderDescription": "Main layer \u2014 scales CV \u00b1100 % before offset / transfer / slew.",
+        "faderPlusShiftTitle": "Offset",
+        "faderPlusShiftDescription": "Bipolar offset after attenuverter.",
+        "faderPlusFnTitle": "Slew",
+        "faderPlusFnDescription": "Slew time toward the target value.",
+        "fnTitle": "Mute",
+        "fnDescription": "Short tap mute. Shift+hold = momentary bypass.",
+        "ledTop": "Output level (Main) or offset / slew layers",
+        "ledBottom": "Output low half (Main layer only)"
       }
     ],
     "params": [
@@ -170,6 +173,8 @@
       "Steps",
       "Output Min",
       "Output Max",
+      "Gate Threshold",
+      "MIDI Rate",
       "MIDI Channel",
       "MIDI CC",
       "MIDI NRPN",
@@ -177,8 +182,10 @@
       "Color"
     ],
     "storage": [
-      "Muted",
-      "Bypass"
+      "att_saved",
+      "offset_saved",
+      "slew_saved",
+      "muted"
     ]
   },
   {
@@ -560,7 +567,7 @@
     "description": "Fibonacci-spaced gates \u2014 successive ratios approach \u03c6",
     "icon": "sequence-square",
     "color": "Violet",
-    "text": "Golden Gate is a one-channel gate / pitch generator whose hit spacing comes from the Fibonacci sequence (1, 1, 2, 3, 5, 8, 13, and so on). Successive Fibonacci ratios converge on \u03c6 (the golden ratio \u2248 1.618), so as the pattern uses deeper gaps the rhythm feels increasingly \u201cgolden\u201d \u2014 still built from whole-number steps, not continuous \u03c6 timing by default.\n\nAt shallow depth the hits are denser and more regular; deeper Fibonacci values open larger holes, so the same cycle length feels sparser and more asymmetric. Reverse plays the gaps of this filled cycle backwards (not the whole table from its largest value). In pitch modes the jack carries 1V/oct while MIDI sends related notes \u2014 either chromatic Fibonacci intervals (12-TET) or near-\u03c6 intervals (~833 cents \u00d7 gap), with MIDI using nearest note + pitch bend (\u00b12 semitone bend range assumed).\n\nNeeds clock. Jack can be Gate Out, Pitch Out, or CV In for depth / cycle / reset modulation.\n\n### Cheatsheet\n\n**Faders**\n\n- **Third** \u2014 Local speed grid (16th \u2192 quarter; center = follow Speed param)",
+    "text": "Golden Gate is a one-channel gate / pitch generator whose hit spacing comes from the Fibonacci sequence (1, 1, 2, 3, 5, 8, 13, and so on). Successive Fibonacci ratios converge on \u03c6 (the golden ratio \u2248 1.618), so as the pattern uses deeper gaps the rhythm feels increasingly \u201cgolden\u201d \u2014 still built from whole-number steps, not continuous \u03c6 timing by default.\n\nAt shallow depth the hits are denser and more regular; deeper Fibonacci values open larger holes, so the same cycle length feels sparser and more asymmetric. Reverse plays the gaps of this filled cycle backwards (not the whole table from its largest value). In pitch modes the jack carries 1V/oct while MIDI sends related notes \u2014 either chromatic Fibonacci intervals (12-TET) or near-\u03c6 intervals (~833 cents \u00d7 gap), with MIDI using nearest note + pitch bend (\u00b12 semitone bend range assumed). In **\u03c6 pitch** mode, cents = gap \u00d7 833, clamped at 2400\u00a2 before MIDI + CV \u2014 so the simple \u00d7833 rule matches gap 1\u20132 only (~833\u00a2 / ~1666\u00a2); gap \u2265 3 (typical once depth \u2265 4) saturates and MIDI uses nearest semitone + pitch bend.\n\nNeeds clock. Jack can be Gate Out, Pitch Out, or CV In for depth / cycle / reset modulation.\n\n### Cheatsheet\n\n**Faders**\n\n- **Third** \u2014 Local speed grid (16th \u2192 quarter; center = follow Speed param)",
     "channels": [
       {
         "jackTitle": "Gate / Pitch Out",
@@ -625,8 +632,8 @@
         "fnDescription": "Short: freeze toggle. Long: in-mute.",
         "fnPlusShiftTitle": "CV Dest / Mix Mode",
         "fnPlusShiftDescription": "Short: cycle CV Dest. Long: cycle Mix Mode.",
-        "ledTop": "Morph / dest meters",
-        "ledBottom": "Amp / skew meters"
+        "ledTop": "Main: morph hue \u00d7 amount; Alt: cyan amp; Third: skew zone (top)",
+        "ledBottom": "Main: CV-in level (low half); unset in Alt/Third"
       },
       {
         "jackTitle": "CV Out",
@@ -641,8 +648,8 @@
         "fnDescription": "Short: reset phase. Long: out-mute.",
         "fnPlusShiftTitle": "Reverse / Grid Lock",
         "fnPlusShiftDescription": "Short: reverse. Long: clock sync toggle.",
-        "ledTop": "Symmetry / speed meters",
-        "ledBottom": "Warp meters"
+        "ledTop": "Main: output level (top); Alt: red speed; Third: warp zone",
+        "ledBottom": "Main: output level (bottom); unset in Alt/Third"
       }
     ],
     "params": [
@@ -735,21 +742,21 @@
     "description": "Chord progressions \u2014 perform, shift+tap capture, or auto vamp",
     "icon": "note-grid",
     "color": "Violet",
-    "text": "Chord Vamp plays MIDI chord progressions in two modes. **Perform**: scrub a **pitch map** of the genre\u2019s unique degrees across ~3 octaves and **hold** the button to sound the chord. **Auto**: a genre **rhythm phrase** (weighted hits + multi-bar rests) loops on the clock while harmony **Repeats** or **Meanders**; **short press** play/pauses. Toggle modes with **Shift + short press**.\n\nIn Perform, **Shift + short press** switches to Auto and starts playback. If the always-record ring has chords, it also commits the last N bars (per **Capture length**) into a timed clip. If the ring is empty, Auto runs the **genre phrase** instead. **Perform long press** is unused \u2014 the chord stays held while the button is down.\n\nIn Auto, **long press** clears the capture clip and reseeds the genre phrase. **Shift + long press** panics. **Shift + short press** returns to Perform.\n\n**Feel** (Button + Fader) scales Auto hit lengths and Capture playback durations. **Swing** (scene storage, genre-seeded) delays odd 16ths; resets when you pick/reseed a genre.\n\n**Jack** folds CV Out, CV In Macro, and CV In Panic into one enum \u2014 Macro modulates scrub (Perform) or tension (Auto); Panic fires All Notes Off from CV.\n\n### Cheatsheet\n\n**Faders**\n\n- Shared axis: Dub \u2192 Disco \u2192 House \u2192 Techno \u2192 Trip-Hop \u2192 Hip-Hop \u2192 Jungle \u2192 UK Garage \u2192 Dubstep\n\n**Jack params**\n\n- One enum \u2014 a CV In destination and CV Out were never live at once, and the freed slot is what lets Vamp grow\n\n**Params**\n\n- Follow device tonic (default on)",
+    "text": "Chord Vamp plays MIDI chord progressions in two modes. **Perform**: scrub a **pitch map** of the genre\u2019s unique degrees across ~3 octaves and **hold** the button to sound the chord. **Auto**: a genre **rhythm phrase** (weighted hits + multi-bar rests) loops on the clock while harmony **Repeats** or **Meanders**; **short press** play/pauses. Toggle modes with **Shift + short press**.\n\nIn Perform, **Shift + short press** switches to Auto and starts playback. If the always-record ring has chords, it also commits the last N bars (per **Capture length**) into a timed clip. If the ring is empty, Auto runs the **genre phrase** instead. **Perform long press** is unused \u2014 the chord stays held while the button is down.\n\nIn Auto, **long press** clears the capture clip and reseeds the genre phrase. **Shift + long press** panics in **both** modes. **Shift + short press** returns to Perform.\n\n**Feel** (Button + Fader, **Auto only**) scales Auto hit lengths and Capture playback durations. **Swing** (scene storage, genre-seeded) delays odd 16ths; resets when you pick/reseed a genre.\n\n**Jack** folds CV Out, CV In Macro, and CV In Panic into one enum \u2014 Macro modulates scrub (Perform) or tension (Auto); Panic fires All Notes Off from CV.\n\n### Cheatsheet\n\n**Faders**\n\n- Shared axis: Dub \u2192 Disco \u2192 House \u2192 Techno \u2192 Trip-Hop \u2192 Hip-Hop \u2192 Jungle \u2192 UK Garage \u2192 Dubstep\n\n**Jack params**\n\n- One enum \u2014 a CV In destination and CV Out were never live at once, and the freed slot is what lets Vamp grow\n\n**Params**\n\n- Follow device tonic (default on)",
     "channels": [
       {
         "jackTitle": "CV Out / CV In",
-        "jackDescription": "CV Out: chord root pitch while held/sounding (0V idle). CV In Macro or CV In Panic.",
+        "jackDescription": "CV Out: chord root pitch while held or auto-playing (continuous preview, not 0 V idle). CV In Macro or CV In Panic.",
         "faderTitle": "Scrub / Tension",
         "faderDescription": "Perform: pitch map (genre degrees \u00d7 3 octaves). Auto: Meander tension.",
         "faderPlusFnTitle": "Feel",
-        "faderPlusFnDescription": "Laid back \u2194 advanced hit length (Capture durs scale too). Rests unchanged.",
+        "faderPlusFnDescription": "Auto only: laid back \u2194 advanced hit length (Capture durs scale too). Rests unchanged.",
         "faderPlusShiftTitle": "Genre",
         "faderPlusShiftDescription": "Cycle genre preset (Capture clip slot when a timed clip exists).",
         "fnTitle": "Chord / Play",
         "fnDescription": "Perform: hold for chord. Auto: short = play/pause. Long (Auto): clear clip / reseed.",
         "fnPlusShiftTitle": "Mode / Capture / Panic",
-        "fnPlusShiftDescription": "Short: toggle Perform\u2194Auto; Perform+Shift+short = capture. Long (Auto): panic.",
+        "fnPlusShiftDescription": "Short: toggle Perform\u2194Auto; Perform+Shift+short = capture. Long: panic (Perform or Auto).",
         "ledTop": "Scrub / phrase / pitch meter",
         "ledTopPlusShift": "Genre color (rose = capture clip)",
         "ledTopPlusFn": "Feel / pitch (rose Auto, blue Perform)",
@@ -792,17 +799,21 @@
     "description": "Clocked sample & hold to MIDI note/CC",
     "icon": "note-box",
     "color": "Cyan",
-    "text": "Hold Sam samples CV on clock ticks and sends MIDI note or CC. Bottom LED shows a spectrum meter of the held value.\n\n### Cheatsheet\n\nClocked sample-and-hold. Capture on division or Shift+Short; Main shapes gate length or CC depth. Long soft-mutes so notes can ring out. Third sets how strongly velocity follows the sample.\n\n**Buttons**\n\n- **Long** (no fader move) \u2014 Soft mute (fade; no hard note-off)\n\n**Params / LEDs**\n\n- Layer meters: IR\u2192UV spectrum on Main/Alt/Third fader",
+    "text": "Hold Sam samples CV on clock ticks and sends MIDI note or CC. Attenuverter lives in params \u2014 the Main fader is gate length (Note) or CC amount (Cc).\n\n### Cheatsheet\n\nClocked sample-and-hold. Each division (or **Shift+Short** forced sample) captures CV \u2192 MIDI. **Shift+Fader** = clock division; **Button+Fader** = velocity sensitivity (sample delta \u2192 velocity). **Short** (no fader move) = soft mute (notes ring out). **Long** (no fader move) = panic + hard mute. Attenuverter, quantizer bypass, and base velocity are params.\n\n**Faders**\n\n- **Main** \u2014 Gate % (Note) or CC amount (Cc)\n- **Shift+Fader** \u2014 Clock division\n- **Button+Fader** \u2014 Velocity sensitivity\n\n**Buttons**\n\n- **Short** \u2014 Soft mute toggle\n- **Long** \u2014 Panic + mute (no fader move)\n- **Shift+Short** \u2014 Forced manual sample\n\n**LEDs**\n\n- IR\u2192UV spectrum meter of the **active fader layer** (Main / Alt / Third), Top+Bottom split \u2014 not the held CV sample",
     "channels": [
       {
         "jackTitle": "CV In",
-        "jackDescription": "Bipolar or unipolar CV to sample on each clock tick.",
-        "faderTitle": "Attenuverter",
-        "faderDescription": "Scales and inverts incoming CV before quantize.",
-        "fnTitle": "Mute",
-        "fnDescription": "Short tap mutes MIDI output.",
-        "ledTop": "Held value level",
-        "ledBottom": "Spectrum meter of display value"
+        "jackDescription": "CV sampled each clock tick (scaled by the Attenuverter param).",
+        "faderTitle": "Gate % / CC amount",
+        "faderDescription": "Note: gate length as % of the clock division. Cc: CC depth applied to the sample.",
+        "faderPlusShiftTitle": "Clock division",
+        "faderPlusShiftDescription": "Alt layer \u2014 12 divisions (up = faster ticks).",
+        "faderPlusFnTitle": "Velocity sensitivity",
+        "faderPlusFnDescription": "Button+Fader \u2014 how strongly sample changes affect MIDI velocity.",
+        "fnTitle": "Sample / mute",
+        "fnDescription": "Short: soft mute. Long (no fader move): panic + hard mute. Shift+Short: forced sample.",
+        "ledTop": "Active layer spectrum (high half)",
+        "ledBottom": "Active layer spectrum (low half)"
       }
     ],
     "params": [
@@ -819,7 +830,10 @@
       "Base Velocity"
     ],
     "storage": [
-      "Muted"
+      "gate_saved",
+      "res_saved",
+      "sens_saved",
+      "muted"
     ]
   },
   {
@@ -828,7 +842,7 @@
     "description": "Monophonic root in \u2192 chord MIDI out",
     "icon": "note",
     "color": "Orange",
-    "text": "One root (last MIDI note or pitch CV) picks the chord root; the fader picks\nchord type (Unison \u00b7 Power \u00b7 Min \u00b7 Maj \u00b7 Sus4 \u00b7 Min7 \u00b7 Dom7 \u00b7 Maj7 \u00b7 Min9 \u00b7\nAdd9); up to four MIDI voices sound (MIDI\u2192CV follows the highest). Alt sets\ninversion (0\u20132) or open top. Not a polyphonic keyboard input.\n\nMute is a short tap \u2014 use Third (button+fader) for velocity so mute and vel\ndon\u2019t collide. Alt+Short cycles harmony octave; Alt+Long walks voicing presets\n(tight/dry \u2192 wide/slow). CV Gate: Sustain, fixed ms, or clock divisions.\nNear-0V CV = rest; unpatched float stays silent until a stable pitch.",
+    "text": "One root (last MIDI note or pitch CV) picks the chord root; the fader picks\nchord type (Unison \u00b7 Power \u00b7 Min \u00b7 Maj \u00b7 Sus4 \u00b7 Min7 \u00b7 Dom7 \u00b7 Maj7 \u00b7 Min9 \u00b7\nAdd9); up to four MIDI voices sound (MIDI\u2192CV follows the highest). Alt sets\ninversion (0\u20132) or open top. Not a polyphonic keyboard input.\n\nMute is a short tap \u2014 use Third (button+fader) for velocity so mute and vel\ndon\u2019t collide. **Long press** (no fader move) panics (all notes off). Alt+Short\ncycles harmony octave; Alt+Long walks voicing presets (tight/dry \u2192 wide/slow).\nCV Gate: Sustain, fixed ms, or clock divisions. Near-0V CV = rest; unpatched\nfloat stays silent until a stable pitch.",
     "channels": [
       {
         "jackTitle": "Root / chord out",
@@ -840,7 +854,7 @@
         "faderPlusShiftTitle": "Inversion / open",
         "faderPlusShiftDescription": "Steps 0\u20132 = root / 1st / 2nd inversion; step 3 = open top",
         "fnTitle": "Mute / octave / preset",
-        "fnDescription": "Short mute; Alt+Short harmony octave; Alt+Long voicing preset",
+        "fnDescription": "Short mute; long (no fader move) panic (all notes off); Alt+Short harmony octave; Alt+Long voicing preset",
         "ledTop": "Layer spectrum / chord activity",
         "ledBottom": "Spectrum / mute red"
       }
