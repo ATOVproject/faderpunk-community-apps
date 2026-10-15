@@ -860,7 +860,8 @@ pub async fn run(
     let fut_scene = async {
         loop {
             match app.wait_for_scene_event().await {
-                SceneEvent::LoadScene(_) => {
+                SceneEvent::LoadScene(scene) => {
+                    storage.load_from_scene(scene).await;
                     let (d, m, iv, f, tf) = storage.query(|s| {
                         (
                             s.density_saved,
@@ -883,7 +884,7 @@ pub async fn run(
                     glob_time_fader.set(tf);
                     glob_div.set(div);
                 }
-                SceneEvent::SaveScene(_) => {}
+                SceneEvent::SaveScene(scene) => storage.save_to_scene(scene).await,
             }
         }
     };
