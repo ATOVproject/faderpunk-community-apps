@@ -1,48 +1,51 @@
 #!/usr/bin/env bash
-# Confirms a submitted community app compiles standalone against the real
-# App<N> API. Clones faderpunk, injects the app alongside every factory
-# app (mirroring what faderpunk-store's CLI does — a self-contained shell
-# equivalent here since faderpunk-store isn't published anywhere this repo
-# could depend on yet), and runs the same root-level, stable-Rust build CI
-# and releases actually use (not build-uf2.sh's nightly/build-std path).
+# Confirms a submitted community app builds as an installable FPApp — the
+# way it actually ships. Clones faderpunk and runs this repo's own
+# `make fpapps` (faderpunk's `fpapp build-community`, the same build the
+# downloads site runs after merge) on a copy of this repo holding just the
+# submitted app, with its catalog and manual entries from the PR. Anything
+# that build would reject after merge fails here instead, before merge.
 #
-# Usage: pr-build-check.sh <path-to-submitted-app.rs> <module-name> [faderpunk-ref]
+# Unlike the rest of pr-scope.yml, this runs submitted code: the builder
+# compiles a small host program from the app and runs it to read the app's
+# CONFIG. See pr-scope.yml's header for why that's acceptable there.
+#
+# Needs the toolchain manual-pages.yml installs: stable and nightly Rust
+# with the thumbv8m.main-none-eabihf target, ARM binutils
+# (arm-none-eabi-readelf), and jq.
+#
+# Usage: pr-build-check.sh <app.rs> <module> <apps-catalog.json> <manual-tab.json> [faderpunk-ref]
 
 set -euo pipefail
 
-APP_FILE="${1:?usage: pr-build-check.sh <app.rs> <module> [faderpunk-ref]}"
-MODULE="${2:?usage: pr-build-check.sh <app.rs> <module> [faderpunk-ref]}"
-FADERPUNK_REF="${3:-main}"
+usage="usage: pr-build-check.sh <app.rs> <module> <apps-catalog.json> <manual-tab.json> [faderpunk-ref]"
+APP_FILE="${1:?$usage}"
+MODULE="${2:?$usage}"
+CATALOG="${3:?$usage}"
+MANUAL="${4:?$usage}"
+FADERPUNK_REF="${5:-main}"
+
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
 WORKDIR="$(mktemp -d)"
 trap 'rm -rf "$WORKDIR"' EXIT
 
+# The builder builds every entry in the catalog it's given, so hand it a
+# catalog holding only this app — with its real appId, version and author.
+# Checked before the clone so a missing entry fails in seconds, not minutes.
+APP_REPO="$WORKDIR/app"
+mkdir -p "$APP_REPO/apps"
+jq --arg m "$MODULE" '[.[] | select(.module == $m)]' "$CATALOG" >"$APP_REPO/apps-catalog.json"
+entries="$(jq length "$APP_REPO/apps-catalog.json")"
+if [ "$entries" -ne 1 ]; then
+  echo "error: apps-catalog.json must have exactly one entry with \"module\": \"$MODULE\" (found $entries)" >&2
+  exit 1
+fi
+cp "$APP_FILE" "$APP_REPO/apps/$MODULE.rs"
+cp "$MANUAL" "$APP_REPO/manual-tab.json"
+
 git clone --branch "$FADERPUNK_REF" --depth 1 https://github.com/ATOVproject/faderpunk.git "$WORKDIR/faderpunk"
 
-APPS_DIR="$WORKDIR/faderpunk/faderpunk/src/apps"
-cp "$APP_FILE" "$APPS_DIR/community_$MODULE.rs"
-
-# Rebuild apps/mod.rs: every factory entry already there (parsed straight
-# out of the pristine file — same regex-over-a-flat-list approach as
-# faderpunk-store-core's registry.rs), plus one new entry for the submitted
-# app. The ID here is a placeholder — appId correctness is validated
-# separately by pr-scope-check.sh's catalog check, not this script.
-#
-# Capture the factory list into a variable *before* opening the output
-# redirect below — `{ ...; grep ... "$f"; ... } > "$f"` is a classic bash
-# hazard: the shell truncates the target file for the whole compound
-# command before any command inside it runs, so a grep reading that same
-# file mid-block sees a truncated/racy version of it, not the original
-# content. Confirmed this the hard way: it silently produced an
-# apps/mod.rs with only the new entry and none of the factory apps.
-factory_entries="$(grep -oE '[0-9]+ => [a-z_][a-z0-9_]*' "$APPS_DIR/mod.rs")"
-
-{
-  echo "register_apps!("
-  echo "$factory_entries" | sed 's/^/    /; s/$/,/'
-  echo "    250 => community_$MODULE,"
-  echo ");"
-} >"$APPS_DIR/mod.rs"
-
-cd "$WORKDIR/faderpunk"
-cargo build --bin faderpunk --release --target thumbv8m.main-none-eabihf
+# This repo's Makefile, run from the one-app copy: same invocation as a
+# local `make fpapps` and as manual-pages.yml, so the three can't drift.
+make -C "$APP_REPO" -f "$REPO_ROOT/Makefile" fpapps FADERPUNK_DIR="$WORKDIR/faderpunk"

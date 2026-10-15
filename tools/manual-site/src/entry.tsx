@@ -20,6 +20,11 @@ import path from "node:path";
 import { renderToStaticMarkup } from "react-dom/server";
 
 import {
+  AppGrid,
+  EmbedPage,
+  type AppGridItem,
+} from "../.faderpunk/configurator/src/apps-embed/AppGrid";
+import {
   ManualApp,
   type ManualAppData,
 } from "../.faderpunk/configurator/src/components/manual/ManualApp";
@@ -113,20 +118,24 @@ const Page = () => (
       const download = downloadByApp.get(entry.appId);
       return (
         <div key={entry.appId}>
-          <div className="mt-12 mb-2 flex items-center justify-between gap-4">
+          <div className="mt-12 mb-2">
             <span className="text-gray-400 text-sm">
               v{entry.version} · by {entry.author}
             </span>
-            {download ? (
-              <a
-                className="bg-yellow-fp rounded-sm px-3 py-1.5 text-sm font-semibold text-black"
-                href={download}
-              >
-                Download .fpapp
-              </a>
-            ) : null}
           </div>
-          <ManualApp app={manual} />
+          <ManualApp
+            app={manual}
+            action={
+              download ? (
+                <a
+                  className="bg-yellow-fp rounded-sm px-2 py-1.5 text-center text-xs font-semibold text-black"
+                  href={download}
+                >
+                  Download
+                </a>
+              ) : null
+            }
+          />
         </div>
       );
     })}
@@ -140,6 +149,40 @@ const Page = () => (
 // rather than patching upstream for our benefit.
 const body = renderToStaticMarkup(<Page />).replaceAll('src="/img/', `src="${base}img/`);
 
+// The Configurator embeds this page in an iframe, and an iframe can't
+// size itself to its content — the embedder would have to guess a height
+// and leave the reader scrolling a box inside a page. It's also
+// cross-origin, so the parent can't measure us directly. So report our
+// height instead and let it resize; see CommunityCatalogue.tsx in
+// faderpunk, which listens for exactly this message and checks the
+// origin before trusting it. Standalone viewers just ignore it.
+const RESIZE_SCRIPT = `
+(function () {
+  if (window.parent === window) return;
+  var last = 0;
+  function post() {
+    last = document.documentElement.scrollHeight;
+    window.parent.postMessage({ type: "fp-catalogue-height", height: last }, "*");
+  }
+  function postIfChanged() {
+    if (document.documentElement.scrollHeight !== last) post();
+  }
+  // The embedder may mount its listener after we've already loaded, so
+  // answering on request is what actually makes this reliable —
+  // spontaneous reports alone lose the race and we'd never speak again.
+  window.addEventListener("message", function (event) {
+    if (event.data && event.data.type === "fp-catalogue-request-height") post();
+  });
+  if (window.ResizeObserver) new ResizeObserver(postIfChanged).observe(document.documentElement);
+  window.addEventListener("load", post);
+  document.addEventListener("DOMContentLoaded", post);
+  // Fonts and images land after load and change the height; catch that
+  // without leaving a timer running forever.
+  [100, 500, 1500].forEach(function (d) { setTimeout(postIfChanged, d); });
+  post();
+})();
+`.trim();
+
 const html = `<!doctype html>
 <html lang="en" class="dark">
 <head>
@@ -152,6 +195,7 @@ const html = `<!doctype html>
 <div class="mx-auto max-w-5xl px-4 py-10">
 ${body}
 </div>
+<script>${RESIZE_SCRIPT}</script>
 </body>
 </html>
 `;
@@ -159,4 +203,45 @@ ${body}
 fs.writeFileSync(path.join(outDir, "index.html"), html);
 console.log(
   `wrote ${path.join(outDir, "index.html")} (${entries.length} apps, ${downloadByApp.size} downloads)`,
+);
+
+// A compact icon grid of the same apps, for faderpunk.io to iframe at
+// /embed/. It reuses the grid component faderpunk.io/apps renders, so the
+// two look identical, and links each card to its entry on the catalogue
+// page. Unlike that page there's no resize script: the embedder gives
+// this one a fixed height.
+const gridApps: AppGridItem[] = entries.map((entry) => {
+  const manual = manualById.get(entry.appId)!;
+  return {
+    id: entry.appId,
+    name: manual.title,
+    description: manual.description,
+    color: manual.color,
+    icon: manual.icon,
+    href: `${base}#app-${entry.appId}`,
+  };
+});
+
+const embedHtml = `<!doctype html>
+<html lang="en" class="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Faderpunk Community Apps</title>
+<link rel="stylesheet" href="${base}styles.css">
+</head>
+<body>
+${renderToStaticMarkup(
+  <EmbedPage>
+    <AppGrid apps={gridApps} />
+  </EmbedPage>,
+)}
+</body>
+</html>
+`;
+
+fs.mkdirSync(path.join(outDir, "embed"), { recursive: true });
+fs.writeFileSync(path.join(outDir, "embed", "index.html"), embedHtml);
+console.log(
+  `wrote ${path.join(outDir, "embed", "index.html")} (${gridApps.length} apps)`,
 );

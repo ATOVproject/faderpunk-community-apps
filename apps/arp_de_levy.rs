@@ -220,6 +220,7 @@ impl AppParams for Params {
         vec.push(self.cv_out.into()).unwrap();
         vec.push(self.cv_dest.into()).unwrap();
         vec.push(self.cv_att.into()).unwrap();
+        vec.push(self.follow_tonic.into()).unwrap();
         vec
     }
 }
