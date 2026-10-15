@@ -1,0 +1,7 @@
+# GitHub logins of the repo's maintainers, one per line (case-insensitive).
+#
+# Maintainers may edit any app's manual entry or version, and need no
+# author match on app fixes. pr-scope.yml reads this file from the PR's BASE
+# commit, never the PR head, so a PR can't add itself. Changes need a
+# code-owner review (see CODEOWNERS).
+ArthurGibert
