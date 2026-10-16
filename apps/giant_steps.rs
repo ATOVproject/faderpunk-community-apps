@@ -914,9 +914,59 @@ pub async fn run(
     .await;
 }
 
-mod coltrane_geo {
-#![allow(dead_code)]
+mod follow_key {
+    use libfp::MidiNote;
+    use midly::num::u7;
 
+    use crate::app::Quantizer;
+
+    pub async fn root(quantizer: &Quantizer, follow: bool, local_root: MidiNote) -> u8 {
+        if follow {
+            let (_, tonic) = quantizer.get_scale().await;
+            retune(local_root, tonic as u8)
+        } else {
+            midi_u8(local_root)
+        }
+    }
+
+    fn retune(root: MidiNote, pc: u8) -> u8 {
+        let n = midi_u8(root);
+        let target = (n - n % 12) + pc % 12;
+        if target > 127 {
+            target - 12
+        } else {
+            target
+        }
+    }
+
+    fn midi_u8(note: MidiNote) -> u8 {
+        u7::from(note).as_int()
+    }
+}
+
+mod groove {
+    /// Half of the device swing window in 24-PPQN ticks. Mirrors the private
+    /// `SWING_HALF_INTERVAL` in [`crate::tasks::clock`]; keep both in sync.
+    const DEVICE_SWING_HALF: u32 = 6;
+
+    const DEVICE_SWING_DIRECTION_MIN: i8 = 8;
+
+    /// Fraction of one grid step, in per-mille, that the device's global swing
+    /// already displaces.
+    pub fn device_swing_permille(div_ticks: u32, swing_amount: i8) -> u32 {
+        if div_ticks > DEVICE_SWING_HALF || swing_amount == 0 {
+            return 0;
+        }
+        (swing_amount.unsigned_abs() as u32 * 1000) / 50
+    }
+
+    /// Whether the app should flip which side of the grid it delays.
+    pub fn device_swing_reverses(swing_amount: i8) -> bool {
+        swing_amount <= -DEVICE_SWING_DIRECTION_MIN
+    }
+}
+
+mod coltrane_geo {
 //! Coltrane Changes geometry: tonal center cycles, approach patterns, chord
 //! building. Shared by Giant Steps and Axis Matrix.
 
@@ -1295,395 +1345,3 @@ pub fn center_brightness(fader_pos: u16, center_idx: u8, num_centers: u8) -> u8 
     }
 }
 }
-
-mod follow_key {
-//! Shared "follow the device tonality" helpers for note-generating apps.
-//!
-//! The device has one global Key + Tonic, reachable live by holding the Scene
-//! button (Fader 4 = Scale, Fader 5 = Tonic). An app that follows the Tonic
-//! turns that fader into a **transpose** — and every following app moves
-//! together, which is what you want when a bass and a melody play the same
-//! tune. Apps expose this as two `Param::bool`s named "Follow device tonic"
-//! and "Follow device scale".
-//!
-//! Scale and Tonic are deliberately separate: an app's Scale is often part of
-//! its own character (Contura's Folk set, Bassment's genre feel), so the usual
-//! default is to follow the Tonic but keep the local Scale.
-//!
-//! **Cost:** every call here locks the shared quantizer state. Resolve once
-//! per bar or per phrase and cache it — never per step and never per note.
-
-// Each app needs a different part of this surface, and the app feature branches
-// carry one app each — so on those, some of it is unused by construction.
-#![allow(dead_code)]
-
-use libfp::{Key, MidiNote};
-use midly::num::u7;
-
-use crate::app::Quantizer;
-
-/// The device Scale, normalized for note generators: a Key of `Off` means
-/// "don't quantize" device-wide, but a generator has to pick notes from
-/// *something*, so it reads as chromatic here.
-pub async fn device_key(quantizer: &Quantizer) -> Key {
-    let (key, _) = quantizer.get_scale().await;
-    match key {
-        Key::Off => Key::Chromatic,
-        k => k,
-    }
-}
-
-/// Pitch class (0–11) the app should anchor on: the device Tonic when
-/// following, otherwise the pitch class of the app's own root.
-pub async fn tonic_pc(quantizer: &Quantizer, follow: bool, local_root: MidiNote) -> u8 {
-    if follow {
-        let (_, tonic) = quantizer.get_scale().await;
-        tonic as u8
-    } else {
-        midi_u8(local_root) % 12
-    }
-}
-
-/// The app's root, retuned onto the device Tonic when following. This is all an
-/// app needs whose scale already comes from the global quantizer — there the
-/// scale follows anyway and only the root runs loose.
-pub async fn root(quantizer: &Quantizer, follow: bool, local_root: MidiNote) -> u8 {
-    if follow {
-        let (_, tonic) = quantizer.get_scale().await;
-        retune(local_root, tonic as u8)
-    } else {
-        midi_u8(local_root)
-    }
-}
-
-/// Root *and* Scale at once, for apps whose scale is a plain [`Key`] — one
-/// quantizer lock instead of two.
-///
-/// The returned root keeps the octave of `local_root` and only takes on the
-/// new pitch class, so following the Tonic transposes within the register the
-/// patch was written in rather than jumping the app an octave.
-pub async fn root_and_key(
-    quantizer: &Quantizer,
-    follow_tonic: bool,
-    follow_scale: bool,
-    local_root: MidiNote,
-    local_key: Key,
-) -> (u8, Key) {
-    if !follow_tonic && !follow_scale {
-        return (midi_u8(local_root), local_key);
-    }
-    let (device_key, device_tonic) = quantizer.get_scale().await;
-    let pc = if follow_tonic {
-        device_tonic as u8
-    } else {
-        midi_u8(local_root) % 12
-    };
-    let key = if follow_scale {
-        match device_key {
-            Key::Off => Key::Chromatic,
-            k => k,
-        }
-    } else {
-        local_key
-    };
-    (retune(local_root, pc), key)
-}
-
-/// Re-anchor an absolute root note onto pitch class `pc`, keeping its octave.
-pub fn retune(root: MidiNote, pc: u8) -> u8 {
-    let n = midi_u8(root);
-    let target = (n - n % 12) + pc % 12;
-    // A root in the top octave can overshoot; drop an octave rather than clamp,
-    // so the pitch class stays the one that was asked for.
-    if target > 127 {
-        target - 12
-    } else {
-        target
-    }
-}
-
-fn midi_u8(note: MidiNote) -> u8 {
-    u7::from(note).as_int()
-}
-}
-
-mod genre_palette {
-#![allow(dead_code)]
-//! Shared genre labels + 8-bar tropes for Grooves, Chord Vamp, and Bassment.
-//!
-//! Scrub / commit LEDs use the open red→blue spectrum in [`super::led_fx::spectrum_color`] —
-//! there is no discrete per-genre chrome on device.
-
-pub const NUM_GENRES: usize = 9;
-
-/// Morph axis (club spine → breaks → UK bass). Indices match Shift+Fader
-/// buckets and Enum params — keep identical across apps.
-pub const GENRE_NAMES: &[&str] = &[
-    "Dub",
-    "Disco",
-    "House",
-    "Techno",
-    "Trip-Hop",
-    "Hip-Hop",
-    "Jungle",
-    "UK Garage",
-    "Dubstep",
-];
-
-/// Shared 8-bar genre tropes (scale degrees 0–6). First 4 ≈ statement;
-/// bars 5–8 = answer / turnaround. Used by Chord Vamp + Bassment — keep in sync.
-pub const GENRE_PROG_8: [[u8; 8]; NUM_GENRES] = [
-    // Dub — i–IV–i–V | i–IV–V–i
-    [0, 3, 0, 4, 0, 3, 4, 0],
-    // Disco — I–vi–IV–V | I–IV–V–I
-    [0, 5, 3, 4, 0, 3, 4, 0],
-    // House — i–VII–VI–VII | i–VI–VII–i
-    [0, 6, 5, 6, 0, 5, 6, 0],
-    // Techno — pedal + rare V | pedal + drop
-    [0, 0, 0, 4, 0, 0, 4, 0],
-    // Trip-Hop — i–VII–VI–v | i–VI–v–i
-    [0, 6, 5, 4, 0, 5, 4, 0],
-    // Hip-Hop — i–VI–III–VII | i–III–VI–VII
-    [0, 5, 2, 6, 0, 2, 5, 6],
-    // Jungle — i–VII–VI–III | i–VI–III–VII
-    [0, 6, 5, 2, 0, 5, 2, 6],
-    // UK Garage — i–III–VI–VII | i–VI–III–VII
-    [0, 2, 5, 6, 0, 5, 2, 6],
-    // Dubstep — i–i–VI–VII | i–VI–VII–i
-    [0, 0, 5, 6, 0, 5, 6, 0],
-];
-
-/// Fader position at the center of genre bucket `index` (seeds Alt latch target).
-pub fn genre_fader_center(index: usize, picks: usize) -> u16 {
-    let picks = picks.max(1);
-    let i = index.min(picks - 1) as u32;
-    let p = picks as u32;
-    ((((i * 2) + 1) * 4095) / (p * 2)) as u16
-}
-}
-
-mod led_fx {
-#![allow(dead_code)]
-//! Shared LED color helpers (spectrum hue, genre-axis math).
-//!
-//! Open spectrum is red→blue (~0°…240°) — no magenta wrap (not a spectral color).
-
-use libfp::Color;
-
-/// Integer HSV→RGB with S=V=max. Hue in degrees (0..360).
-pub fn hsv_to_rgb(hue: u16) -> (u8, u8, u8) {
-    let hue = hue % 360;
-    let sector = hue / 60; // 0..=5
-    let ramp = ((hue % 60) as u32 * 255 / 59) as u8;
-    match sector {
-        0 => (255, ramp, 0),
-        1 => (255 - ramp, 255, 0),
-        2 => (0, 255, ramp),
-        3 => (0, 255 - ramp, 255),
-        4 => (ramp, 0, 255),
-        _ => (255, 0, 255 - ramp),
-    }
-}
-
-/// Max hue for the open spectrum (red→blue). Magenta/wrap excluded.
-pub const SPECTRUM_HUE_MAX: u16 = 240;
-
-/// u12 `0..=4095` → [`Color`] along open spectrum (red→yellow→green→cyan→blue).
-pub fn spectrum_color(pos: u16) -> Color {
-    let pos = pos.min(4095) as u32;
-    let hue = ((pos * u32::from(SPECTRUM_HUE_MAX)) / 4095) as u16;
-    let (r, g, b) = hsv_to_rgb(hue);
-    Color::Custom(r, g, b)
-}
-
-/// Continuous genre axis: fader `0..=4095` → `(lo, hi, frac_u8)` across `picks-1` spans.
-///
-/// `frac` is `0..=255` between `lo` and `hi`. At the ends `lo == hi` and `frac == 0`.
-pub fn genre_pair(fader: u16, picks: usize) -> (usize, usize, u8) {
-    let picks = picks.max(1);
-    if picks == 1 {
-        return (0, 0, 0);
-    }
-    let spans = (picks - 1) as u32;
-    let f = u32::from(fader.min(4095));
-    // Fixed-point position along 0..spans
-    let scaled = f * spans;
-    let lo = (scaled / 4095) as usize;
-    let lo = lo.min(picks - 1);
-    if lo >= picks - 1 {
-        return (picks - 1, picks - 1, 0);
-    }
-    let rem = scaled % 4095;
-    let frac = ((rem * 255) / 4095) as u8;
-    (lo, lo + 1, frac)
-}
-
-/// Nearest genre index on the continuous axis (midpoint snap).
-#[allow(dead_code)] // used by Grooves; kept public for shared genre-axis API
-pub fn genre_nearest(fader: u16, picks: usize) -> usize {
-    let (lo, hi, frac) = genre_pair(fader, picks);
-    if frac < 128 {
-        lo
-    } else {
-        hi
-    }
-}
-
-/// Integer lerp `a → b` by `frac` (`0..=255`).
-pub fn lerp_i32(a: i32, b: i32, frac: u8) -> i32 {
-    a + ((b - a) * i32::from(frac)) / 255
-}
-
-/// Integer lerp for `u8` amounts.
-pub fn lerp_u8(a: u8, b: u8, frac: u8) -> u8 {
-    lerp_i32(i32::from(a), i32::from(b), frac).clamp(0, 255) as u8
-}
-}
-
-mod groove {
-#![allow(dead_code)]
-//! Shared swing / feel math for Grooves and Chord Vamp.
-//!
-//! Genre **labels/colors** live in [`super::genre_palette`]; drum/harmony DNA
-//! stays app-local. This module only owns timing helpers and per-genre swing bias.
-
-use super::genre_palette::NUM_GENRES;
-
-/// 24 PPQN → one 16th note.
-pub const SIXTEENTH: u32 = 6;
-
-/// Flat core velocity % when Feel is fully attenuated (all voices equal).
-/// Used by Grooves; kept public for the shared API.
-#[allow(dead_code)]
-pub const FLAT_VEL: u16 = 70;
-
-/// Per-genre default swing % (0–100); order matches genre_palette morph axis.
-pub const SWING_BIAS: [i8; NUM_GENRES] = [
-    20, // Dub
-    35, // Disco
-    30, // House
-    8,  // Techno — stays straighter by DNA, not by burying Feel
-    45, // Trip-Hop
-    40, // Hip-Hop
-    48, // Jungle
-    50, // UK Garage
-    25, // Dubstep
-];
-
-/// Ease-in Feel curve: lower third stays near-flat, upper half ramps hard.
-/// Used for swing / character blend — keep this shape for Vamp / Bassment.
-#[allow(dead_code)]
-#[inline]
-pub fn feel_curve(feel: u16) -> u16 {
-    let f = u32::from(feel);
-    ((f * f) / 4095) as u16
-}
-
-/// Softer Feel curve for humanization (jitter, ghost chance). Midpoint of
-/// linear and quadratic so the lower fader half is audible without changing
-/// [`feel_curve`] (shared with Vamp / Bassment).
-#[allow(dead_code)]
-#[inline]
-pub fn humanize_curve(feel: u16) -> u16 {
-    let f = u32::from(feel);
-    ((f * (f + 4095)) / (2 * 4095)) as u16
-}
-
-/// Linear blend `flat → character` by curved Feel amount (0..=4095).
-#[allow(dead_code)]
-#[inline]
-pub fn feel_lerp_u16(flat: u16, character: u16, feel: u16) -> u16 {
-    let t = u32::from(feel_curve(feel));
-    let flat = u32::from(flat);
-    let character = u32::from(character);
-    if character >= flat {
-        (flat + (character - flat) * t / 4095) as u16
-    } else {
-        (flat - (flat - character) * t / 4095) as u16
-    }
-}
-
-/// Signed blend for microtiming offsets (ms or ticks — caller chooses units).
-#[allow(dead_code)]
-#[inline]
-pub fn feel_lerp_i32(flat: i32, character: i32, feel: u16) -> i32 {
-    let t = i32::from(feel_curve(feel));
-    flat + ((character - flat) * t) / 4095
-}
-
-/// MPC-style: delay odd 16ths by `0..=(SIXTEENTH-1)` scaled by `swing_pct` (0–100).
-/// `reversed` flips which parity is delayed. Kept for Vamp / Bassment (tick domain).
-#[allow(dead_code)]
-#[inline]
-pub fn swing_delay_ticks(step: u32, swing_pct: i32, reversed: bool) -> u32 {
-    let pct = swing_pct.clamp(0, 100) as u32;
-    if pct == 0 {
-        return 0;
-    }
-    let odd = step % 2 == 1;
-    let delay_this = if reversed { !odd } else { odd };
-    if !delay_this {
-        return 0;
-    }
-    let max_delay = SIXTEENTH.saturating_sub(1).max(1);
-    ((max_delay * pct) / 100).min(max_delay)
-}
-
-/// Continuous swing in milliseconds. `swing_pct = 50` ≈ triplet swing
-/// (⅓ of a 16th); 100 = ⅔. Same genre-bias scale as [`swing_delay_ticks`].
-#[allow(dead_code)]
-#[inline]
-pub fn swing_delay_ms(step: u32, swing_pct: i32, reversed: bool, sixteenth_ms: u32) -> u32 {
-    let pct = swing_pct.clamp(0, 100) as u32;
-    if pct == 0 || sixteenth_ms == 0 {
-        return 0;
-    }
-    let odd = step % 2 == 1;
-    let delay_this = if reversed { !odd } else { odd };
-    if !delay_this {
-        return 0;
-    }
-    // 50% → ⅓ of a 16th; 100% → ⅔. Cap just under the next step.
-    let raw = (sixteenth_ms * pct * 2) / 300;
-    raw.min(sixteenth_ms.saturating_sub(2))
-}
-
-/// Half of the device swing window in 24-PPQN ticks. Mirrors the private
-/// `SWING_HALF_INTERVAL` in [`crate::tasks::clock`]; keep both in sync.
-const DEVICE_SWING_HALF: u32 = 6;
-
-/// Fraction of one grid step, in per-mille, that the device's global swing
-/// already displaces. Zero when the app's grid is coarser than the swing
-/// window half, because those steps always land on the window anchor and the
-/// clock never moves them.
-#[allow(dead_code)]
-#[inline]
-pub fn device_swing_permille(div_ticks: u32, swing_amount: i8) -> u32 {
-    if div_ticks > DEVICE_SWING_HALF || swing_amount == 0 {
-        return 0;
-    }
-    // The clock shifts the offbeat by `H * s / 50` ticks, i.e. |s|/50 of a 16th.
-    (swing_amount.unsigned_abs() as u32 * 1000) / 50
-}
-
-/// Threshold below which a negative global swing is treated as straight for
-/// direction purposes. Flipping parity is a large musical change, so it should
-/// not fall out of a value that barely moves the grid at all.
-const DEVICE_SWING_DIRECTION_MIN: i8 = 8;
-
-/// Whether the app should flip which side of the grid it delays, so its own
-/// swing leans the same way the device clock already does instead of pulling
-/// against it.
-#[allow(dead_code)]
-#[inline]
-pub fn device_swing_reverses(swing_amount: i8) -> bool {
-    swing_amount <= -DEVICE_SWING_DIRECTION_MIN
-}
-
-/// Genre swing bias as 0–100.
-#[inline]
-pub fn swing_bias(genre: usize) -> u8 {
-    SWING_BIAS[genre.min(NUM_GENRES - 1)].clamp(0, 100) as u8
-}
-}
-
