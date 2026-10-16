@@ -93,7 +93,7 @@ jobs:
             echo
             echo "GitHub doesn't run workflows for PRs opened by Actions, so the required \`gate\` check won't start by itself: **close and reopen this PR once** to run it. Merging then publishes the release."
             echo
-            echo "This PR is a snapshot. If an app, a manual or the catalog is merged to \`main\` before this PR, **run Prepare release again** (then close and reopen): the release refuses to publish a stale snapshot."
+            echo "This PR is a snapshot. If an app or the catalog is merged to \`main\` before this PR, **run Prepare release again** (then close and reopen): the release refuses to publish a stale snapshot."
           } > pr-body.md
           existing=$(gh pr list --head release --base main --state open --json number --jq '.[0].number // empty')
           if [ -n "$existing" ]; then
@@ -103,4 +103,4 @@ jobs:
             url=$(gh pr create --base main --head release --title "chore: prepare release" --body-file pr-body.md)
           fi
           echo "Release PR: $url" >> "$GITHUB_STEP_SUMMARY"
-          echo "Close and reopen it once so the required checks run. Merge it before anything else touching apps, manuals or the catalog, or run this workflow again." >> "$GITHUB_STEP_SUMMARY"
+          echo "Close and reopen it once so the required checks run. Merge it before anything else touching apps or the catalog, or run this workflow again." >> "$GITHUB_STEP_SUMMARY"

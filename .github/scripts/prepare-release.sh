@@ -9,18 +9,21 @@
 #   prepare-release.sh fresh PREPARED_ON MERGED_ONTO
 #                                        exit 1 if anything that ships changed in between
 #
-# What counts as "unreleased": an app has a change when, since the commit that
-# set its CURRENT catalog version, either its apps/<module>.rs or its
-# manual-tab.json entry differs. The manual counts because it ships inside the
-# .fpapp package. The comparison is by content, so a change that was reverted
-# in between is not a change.
+# What counts as "unreleased": an app has a change when its apps/<module>.rs
+# differs from what it was at the commit that set its CURRENT catalog version.
+# The version tracks the app's code, so a manual-only edit does NOT release an
+# app (the catalogue site always shows the latest manual anyway; the copy
+# inside an installed .fpapp catches up the next time the app is released). The
+# app's manual commits are still listed as context for an app that is being
+# bumped for its code. The comparison is by content, so a change that was
+# reverted in between is not a change.
 #
 # How far to bump, from the conventional-commit subjects of the commits that
 # touched apps/<module>.rs (history is squash-merged, so first-parent subjects
 # are the PR titles):
 #   breaking (`type!:` or "BREAKING CHANGE")  major, but minor while the app is 0.x
 #   feat                                       minor
-#   anything else, or a manual-only change     patch
+#   anything else                              patch
 # The highest level across the commits wins.
 
 set -euo pipefail
@@ -84,7 +87,7 @@ level_from_subjects() {
 
 cmd_plan() {
   local ref="${1:-HEAD}" lines module app_id current rel title level to
-  local app_commits manual_commits app_changed manual_changed c p changes
+  local app_commits manual_commits c p changes
   git rev-parse --verify --quiet "$ref^{commit}" >/dev/null || die "unknown ref: $ref"
   lines="$(mktemp)"
   trap 'rm -f "$lines"' RETURN
@@ -98,15 +101,14 @@ cmd_plan() {
       continue
     fi
 
-    app_changed=0
-    git diff --quiet "$rel" "$ref" -- "apps/$module.rs" || app_changed=1
-    manual_changed=0
-    [ "$(manual_at "$rel" "$app_id")" = "$(manual_at "$ref" "$app_id")" ] || manual_changed=1
-    [ "$app_changed" -eq 1 ] || [ "$manual_changed" -eq 1 ] || continue
+    # Only the app's code releases it. A manual-only edit is not a release.
+    git diff --quiet "$rel" "$ref" -- "apps/$module.rs" && continue
 
     app_commits="$(git log --first-parent --format='%h%x09%s' "$rel..$ref" -- "apps/$module.rs")"
+    # Context only: which manual edits landed since, so the table tells the
+    # whole story for an app that is being bumped anyway.
     manual_commits=""
-    if [ "$manual_changed" -eq 1 ]; then
+    if [ "$(manual_at "$rel" "$app_id")" != "$(manual_at "$ref" "$app_id")" ]; then
       while read -r c; do
         p="$(git rev-parse --verify --quiet "$c^" || true)"
         [ -n "$p" ] || continue
@@ -159,19 +161,20 @@ cmd_body() {
 }
 
 # A release PR is a snapshot: its version table was worked out on PREPARED_ON.
-# If anything that ships (apps/, manual-tab.json, apps-catalog.json) merged
-# after that and before the PR itself, the release would build code that its
-# versions don't describe. The check has to compare those two commits rather
+# If an app or the catalog (apps/, apps-catalog.json) merged after that and
+# before the PR itself, the release would build code that its versions don't
+# describe. Manuals are deliberately not part of this: they don't drive
+# versions, so a late manual edit just rides along. The check has to compare those two commits rather
 # than re-plan at the merge commit: the release commit is newer than the late
 # change, so a re-plan would start counting from after it and see nothing.
 cmd_fresh() {
   local prepared="${1:?usage: prepare-release.sh fresh PREPARED_ON MERGED_ONTO}"
   local merged="${2:?usage: prepare-release.sh fresh PREPARED_ON MERGED_ONTO}"
-  if git diff --quiet "$prepared" "$merged" -- apps manual-tab.json apps-catalog.json; then
+  if git diff --quiet "$prepared" "$merged" -- apps apps-catalog.json; then
     return 0
   fi
-  echo "This release PR is stale: apps, manuals or the catalog changed on main after it was prepared:" >&2
-  git diff --stat "$prepared" "$merged" -- apps manual-tab.json apps-catalog.json >&2
+  echo "This release PR is stale: apps or the catalog changed on main after it was prepared:" >&2
+  git diff --stat "$prepared" "$merged" -- apps apps-catalog.json >&2
   echo "Run Prepare release again, then close and reopen the new PR." >&2
   return 1
 }
