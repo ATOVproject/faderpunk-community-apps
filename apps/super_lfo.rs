@@ -371,27 +371,40 @@ pub async fn run(
     storage: &ManagedStorage<Storage>,
 ) {
 
-    let (range, midi_out, midi_chan, midi_cc, led_color, nrpn, mix_mode, osc_b, p_dest, p_rate_mod) =
-        params.query(|p| {
-            (
-                p.range,
-                p.midi_out,
-                p.midi_channel,
-                p.midi_cc,
-                p.color,
-                p.nrpn,
-                p.mix_mode.min(3),
-                p.osc_b.min(1),
-                p.dest.min(DEST_COUNT - 1),
-                p.rate_mod.clamp(0, 100),
-            )
-        });
+    let (
+        range,
+        midi_out,
+        midi_chan,
+        midi_cc,
+        led_color,
+        nrpn,
+        mix_mode,
+        osc_b,
+        p_dest,
+        p_rate_mod,
+        p_mix_balance,
+    ) = params.query(|p| {
+        (
+            p.range,
+            p.midi_out,
+            p.midi_channel,
+            p.midi_cc,
+            p.color,
+            p.nrpn,
+            p.mix_mode.min(3),
+            p.osc_b.min(1),
+            p.dest.min(DEST_COUNT - 1),
+            p.rate_mod.clamp(0, 100),
+            p.mix_balance.clamp(0, 100),
+        )
+    });
 
-    // Configurator CV Dest / Rate Mod are start values; apply on each run()
+    // Configurator CV Dest / Rate Mod / Mix balance are start values; apply on each run()
     // (param edits restart run). Scene load can still override storage later.
     storage.modify_and_save(|s| {
         s.dest = p_dest;
         s.rate_mod = ((p_rate_mod as u32 * 4095) / 100) as u16;
+        s.mix_balance = ((p_mix_balance as u32 * 4095) / 100) as u16;
     });
 
     let speed_mult = 2u32.pow(params.query(|p| p.speed_mult).min(31) as u32);
@@ -568,6 +581,7 @@ pub async fn run(
                 symmetry_base,
                 rate_mod_base,
                 attenuation_base,
+                mix_balance,
             ) = storage.query(|s| {
                 (
                     s.clocked,
@@ -579,13 +593,10 @@ pub async fn run(
                     s.symmetry,
                     s.rate_mod,
                     s.layer_attenuation,
+                    s.mix_balance,
                 )
             });
-            // 0% = A, 50% = center, 100% = B (Xfade). Configurator / preset param.
-            let mix_balance = {
-                let pct = params.query(|p| p.mix_balance).clamp(0, 100) as u32;
-                ((pct * 4095) / 100) as u16
-            };
+            // 0% = A, 50% = center (~2048), 100% = B (Xfade); scene-persisted in storage.
 
             let cv_delta = in_val as i32 - 2047;
             let morph = cv_mod_u16(morph_base, destination == DEST_MORPH, cv_delta);
