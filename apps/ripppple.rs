@@ -169,8 +169,9 @@ fn s_curve_12bit(value: u16) -> u16 {
     ((num + den / 2) / den).min(4095) as u16
 }
 
+/// Full-wave rectify around mid-scale: 0 at center, full scale at either rail.
 fn rectify_12bit(value: u16) -> u16 {
-    value.abs_diff(2047).saturating_add(2047).min(4095)
+    (value.abs_diff(2047) * 2).min(4095)
 }
 
 fn fold_12bit(mut value: i32) -> u16 {
