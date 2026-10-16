@@ -46,9 +46,9 @@ jobs:
           path: faderpunk-community-apps
           fetch-depth: 0
 
-      # A release PR is a snapshot. If an app, a manual or the catalog merged
-      # to main between "Prepare release" and this PR's merge, the ZIP would
-      # hold code its versions don't describe. Nothing is published yet, so
+      # A release PR is a snapshot. If an app or the catalog merged to main
+      # between "Prepare release" and this PR's merge, the ZIP would hold code
+      # its versions don't describe. Nothing is published yet, so
       # failing here is safe: run Prepare release again.
       - name: Refuse a stale release
         working-directory: faderpunk-community-apps

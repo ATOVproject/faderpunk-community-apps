@@ -65,6 +65,7 @@ check "a fresh catalog has nothing to release" "[]" "$(summary)"
 touch_app a; commit "fix: A thing (#1)"
 touch_app b; commit "feat: B new thing (#2)"
 manual_text 102 "c rewritten"; commit "docs: C manual (#3)"
+manual_text 101 "b rewritten"; commit "docs: B manual (#3b)"
 touch_app a; commit "refactor!: A rewrite (#4)"
 touch_app d; commit "fix: D thing (#5)"
 git revert --no-edit HEAD >/dev/null                      # d: net no change
@@ -76,34 +77,36 @@ touch_app g; commit "feat: G new (#10)"
 touch_app g; commit "fix: G small (#11)"
 
 # a: 'refactor!' is breaking; at 0.x that is only a minor bump, 2 commits
-# b: feat -> minor
-# c: manual-only change -> patch
+# b: feat -> minor; its manual edit rides along as context
+# c: manual-only change -> NOT released (the version tracks the app's code)
 # d: changed then reverted -> no bump
 # e: only the change AFTER its last bump counts
 # f: breaking at >=1.0 -> major
 # g: feat + fix -> highest wins (minor)
-expected='[{"module":"a","from":"0.1.0","to":"0.2.0","level":"minor","n":2},{"module":"b","from":"0.1.0","to":"0.2.0","level":"minor","n":1},{"module":"c","from":"0.1.0","to":"0.1.1","level":"patch","n":1},{"module":"e","from":"0.1.1","to":"0.1.2","level":"patch","n":1},{"module":"f","from":"1.2.3","to":"2.0.0","level":"major","n":1},{"module":"g","from":"0.1.0","to":"0.2.0","level":"minor","n":2}]'
+expected='[{"module":"a","from":"0.1.0","to":"0.2.0","level":"minor","n":2},{"module":"b","from":"0.1.0","to":"0.2.0","level":"minor","n":2},{"module":"e","from":"0.1.1","to":"0.1.2","level":"patch","n":1},{"module":"f","from":"1.2.3","to":"2.0.0","level":"major","n":1},{"module":"g","from":"0.1.0","to":"0.2.0","level":"minor","n":2}]'
 check "plan: bump levels, reverts and prior bumps" "$expected" "$(summary)"
 
 "$PREPARE" plan >plan.json
 check "plan: reasons carry the commit subjects" \
   '["fix: A thing (#1)","refactor!: A rewrite (#4)"]' \
   "$(jq -c '[.[] | select(.module == "a") | .changes[].subject] | flatten | sort' plan.json)"
-check "plan: manual-only reason is tagged manual" \
-  '["manual"]' "$(jq -c '[.[] | select(.module == "c") | .changes[].kind] | unique' plan.json)"
-check "plan: title comes from the manual entry" '"C"' "$(jq -c '.[] | select(.module == "c") | .title' plan.json)"
+check "plan: a manual-only edit does not release an app" \
+  '[]' "$(jq -c '[.[] | select(.module == "c")]' plan.json)"
+check "plan: a manual edit rides along as context for an app released for its code" \
+  '["app","manual"]' "$(jq -c '[.[] | select(.module == "b") | .changes[].kind] | unique' plan.json)"
+check "plan: title comes from the manual entry" '"B"' "$(jq -c '.[] | select(.module == "b") | .title' plan.json)"
 
 # --- apply: versions change, nothing else -----------------------------------
 before="$(jq -c 'map(del(.version))' apps-catalog.json)"
 "$PREPARE" apply plan.json
 check "apply: only versions change" "$before" "$(jq -c 'map(del(.version))' apps-catalog.json)"
 check "apply: versions match the plan" \
-  '{"a":"0.2.0","b":"0.2.0","c":"0.1.1","d":"0.1.0","e":"0.1.2","f":"2.0.0","g":"0.2.0"}' \
+  '{"a":"0.2.0","b":"0.2.0","c":"0.1.0","d":"0.1.0","e":"0.1.2","f":"2.0.0","g":"0.2.0"}' \
   "$(jq -c 'map({(.module): .version}) | add' apps-catalog.json)"
 
 # --- body --------------------------------------------------------------------
 body="$("$PREPARE" body plan.json)"
-check "body: header counts the apps" "yes" "$(grep -q 'bumps the version of 6 app(s)' <<<"$body" && echo yes || echo no)"
+check "body: header counts the apps" "yes" "$(grep -q 'bumps the version of 5 app(s)' <<<"$body" && echo yes || echo no)"
 check "body: a row per app" "yes" "$(grep -qF '| A (`a`) | 0.1.0 → 0.2.0 | minor |' <<<"$body" && echo yes || echo no)"
 
 # --- once the bumps are committed there is nothing left to release ------------
@@ -125,8 +128,8 @@ check "fresh: an unrelated change merged since" "fresh" "$(fresh "$prepared" HEA
 touch_app c; commit "fix: C late (#13)"
 check "stale: an app changed after the PR was prepared" "stale" "$(fresh "$prepared" HEAD)"
 prepared="$(git rev-parse HEAD)"
-manual_text 101 "b rewritten"; commit "docs: B manual (#14)"
-check "stale: a manual changed after the PR was prepared" "stale" "$(fresh "$prepared" HEAD)"
+manual_text 101 "b rewritten again"; commit "docs: B manual (#14)"
+check "fresh: a manual edit merged since does not make it stale" "fresh" "$(fresh "$prepared" HEAD)"
 prepared="$(git rev-parse HEAD)"
 catalog_version c 0.9.0; commit "chore: bump c (#15)"
 check "stale: the catalog changed after the PR was prepared" "stale" "$(fresh "$prepared" HEAD)"

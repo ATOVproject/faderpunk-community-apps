@@ -173,15 +173,17 @@ A release is cut by hand, by the maintainer:
 
 1. **Actions → Prepare release → Run workflow**, on `main`. Tick *Dry run* first
    to see the plan in the job summary without pushing anything.
-2. For every app, the workflow compares `apps/<name>.rs` and the app's
-   `manual-tab.json` entry with what they were when its current version was
-   set. A difference means unreleased changes. The manual counts because it
-   ships inside the `.fpapp`. A change that was reverted in between is not a
-   change.
+2. For every app, the workflow compares `apps/<name>.rs` with what it was when
+   the app's current version was set. A difference means unreleased changes. A
+   change that was reverted in between is not a change. **The version tracks the
+   app's code, so a manual-only edit does not release an app:** the catalogue
+   site always shows the latest manual, and the copy inside an installed
+   `.fpapp` catches up the next time that app is released. Manual edits that
+   landed meanwhile are still listed in the table for an app being bumped.
 3. The bump is the highest of the commit subjects that touched the app's
    file: a breaking change (`type!:` or `BREAKING CHANGE`) is **major** (only
-   **minor** while the app is `0.x`), `feat` is **minor**, and anything else,
-   including a manual-only change, is **patch**. PR titles are squash-merge
+   **minor** while the app is `0.x`), `feat` is **minor**, and anything else
+   is **patch**. PR titles are squash-merge
    subjects, so **write them as conventional commits** (`fix:`, `feat:`,
    `fix!:`).
 4. The workflow commits the new versions to the `release` branch and opens,
@@ -190,8 +192,8 @@ A release is cut by hand, by the maintainer:
    reopen the PR once** to run the required checks. (Storing a fine-grained
    PAT or GitHub App token as the `RELEASE_TOKEN` secret makes the PR open
    under that identity with the checks running straight away.)
-6. The PR is a snapshot of the plan. If an app, a manual or the catalog is
-   merged to `main` before it, **run Prepare release again** (the branch is
+6. The PR is a snapshot of the plan. If an app or the catalog is merged to
+   `main` before it, **run Prepare release again** (the branch is
    rebuilt from `main`), then close and reopen the PR once more. Otherwise the
    check on the PR fails, or the release refuses to publish: a ZIP must never
    contain code its versions don't describe.
