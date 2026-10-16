@@ -318,10 +318,15 @@ fn midi_cents_to_counts(base: MidiNote, cents_offset: u32) -> u16 {
 }
 
 /// Nearest MIDI note + pitch bend (±2 semitone range assumed) for a
-/// cent offset above `base`.
+/// cent offset above `base`. Caps at 12_000¢ (0–10V / 10 octaves) so large
+/// Fibonacci gaps keep distinct φ intervals instead of collapsing early.
 fn note_and_bend(base: MidiNote, cents_offset: u32) -> (MidiNote, u16) {
-    let semis = ((cents_offset + 50) / 100) as i8;
-    let bend_cents = cents_offset as i32 - semis as i32 * 100;
+    let cents_offset = cents_offset.min(12_000);
+    let semis_i32 = ((cents_offset + 50) / 100) as i32;
+    let bend_cents = cents_offset as i32 - semis_i32 * 100;
+    let base_n = i32::from(midi_note_num(base));
+    let target = (base_n + semis_i32).clamp(0, 127);
+    let semis = (target - base_n) as i8;
     let n = { base }.transpose(semis);
     // ±200¢ ↔ full 14-bit bend (±2 semitone synth range)
     let bend = (8192i32 + bend_cents * 8192 / 200).clamp(0, 16_383) as u16;
@@ -674,7 +679,11 @@ pub async fn run(
                                 glob_depth.get(),
                                 glob_reversed.get(),
                             );
-                            let cents = (gap as u32 * PHI_CENTS).min(2400);
+                            // One φ-step (≈833¢) per gap unit; clamp only at the
+                            // 10-octave CV/MIDI ceiling inside note_and_bend /
+                            // midi_cents_to_counts — not at 2400¢, which pinned
+                            // nearly every hit once depth ≥ 4 (gap ≥ 3).
+                            let cents = gap as u32 * PHI_CENTS;
                             let (n, bend) = note_and_bend(note, cents);
                             if let Some(ref cv_jack) = cv_out {
                                 cv_jack.set_value(midi_cents_to_counts(note, cents));
