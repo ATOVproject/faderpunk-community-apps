@@ -5,3 +5,10 @@
 # commit, never the PR head, so a PR can't add itself. Changes need a
 # code-owner review (see CODEOWNERS).
 ArthurGibert
+
+# The "chore: prepare release" PR is opened by prepare-release.yml with the
+# default GITHUB_TOKEN, so its author is the Actions bot. Only workflows on
+# main (CODEOWNERS-reviewed) can open PRs as this identity; a fork PR can't
+# pose as it. Remove this line if you give the workflow a RELEASE_TOKEN of
+# your own account instead.
+github-actions[bot]

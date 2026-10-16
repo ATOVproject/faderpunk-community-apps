@@ -695,7 +695,7 @@ fn sustain_fill_sixteenths(mask: u16, step: u32, staccato: u8, is_break: bool) -
 
 pub static CONFIG: Config<PARAMS> = Config::new(
     "Bassment",
-    "Multi-genre basslines with bassist voices",
+    "Multi-genre monophonic basslines with bassist Voice personas",
     Color::Cyan,
     AppIcon::NoteGrid,
 )
