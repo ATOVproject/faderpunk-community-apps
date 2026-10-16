@@ -19,6 +19,7 @@ use libfp::{
     ext::FromValue,
     latch::LatchLayer,
     quantizer::Pitch,
+    utils::attenuate_bipolar,
     AppIcon, Brightness, ClockDivision, Color, Config, MidiChannel, MidiNote, MidiOut, Note, Param, Range, Value,
     VoltPerOct, APP_MAX_PARAMS,
 };
@@ -33,7 +34,7 @@ use self::coltrane_geo::{
 };
 
 pub const CHANNELS: usize = 1;
-pub const PARAMS: usize = 15;
+pub const PARAMS: usize = 16;
 
 const BUTTON_DUCK_MS: u16 = 25;
 const SOUNDING_CAP: usize = 8;
@@ -142,6 +143,11 @@ pub static CONFIG: Config<PARAMS> = Config::new(
     variants: &[Range::_0_10V, Range::_Neg5_5V],
 })
 .add_param(Param::VoltPerOct)
+.add_param(Param::i32 {
+    name: "CV Att",
+    min: 0,
+    max: 400,
+})
 .add_param(Param::bool {
     name: "Follow device tonic",
 })
@@ -166,6 +172,7 @@ pub struct Params {
     jack: usize,
     range: Range,
     vpo: VoltPerOct,
+    cv_att: i32,
     follow_tonic: bool,
     follow_scale: bool,
     motion: usize,
@@ -186,6 +193,7 @@ impl Default for Params {
             jack: JACK_OUT,
             range: Range::_0_10V,
             vpo: VoltPerOct::Standard,
+            cv_att: 100,
             follow_tonic: true,
             follow_scale: false,
             motion: 0,
@@ -195,7 +203,19 @@ impl Default for Params {
 
 impl AppParams for Params {
     fn from_values(values: &[Value]) -> Option<Self> {
-        if values.len() < PARAMS {
+        if values.len() < 12 {
+            return None;
+        }
+        let legacy = values.len() < PARAMS;
+        let cv_att = if legacy {
+            100
+        } else {
+            i32::from_value(values[12]).clamp(0, 400)
+        };
+        let follow_idx = if legacy { 12 } else { 13 };
+        let scale_idx = follow_idx + 1;
+        let motion_idx = scale_idx + 1;
+        if values.len() <= motion_idx {
             return None;
         }
         Some(Self {
@@ -211,9 +231,10 @@ impl AppParams for Params {
             jack: usize::from_value(values[9]).min(JACK_COUNT - 1),
             range: Range::from_value(values[10]),
             vpo: VoltPerOct::from_value(values[11]),
-            follow_tonic: bool::from_value(values[12]),
-            follow_scale: bool::from_value(values[13]),
-            motion: usize::from_value(values[14]).min(3),
+            cv_att,
+            follow_tonic: bool::from_value(values[follow_idx]),
+            follow_scale: bool::from_value(values[scale_idx]),
+            motion: usize::from_value(values[motion_idx]).min(3),
         })
     }
 
@@ -231,6 +252,7 @@ impl AppParams for Params {
         v.push(self.jack.into()).unwrap();
         v.push(self.range.into()).unwrap();
         v.push(self.vpo.into()).unwrap();
+        v.push(self.cv_att.into()).unwrap();
         v.push(self.follow_tonic.into()).unwrap();
         v.push(self.follow_scale.into()).unwrap();
         v.push(self.motion.into()).unwrap();
@@ -261,6 +283,14 @@ impl Default for Storage {
 }
 
 impl AppStorage for Storage {}
+
+fn att_from_pct(pct: i32) -> u16 {
+    ((pct.clamp(0, 400) as u32 * 4095) / 100) as u16
+}
+
+fn cv_mod_offset(raw: u16, cv_att: u16) -> i32 {
+    attenuate_bipolar(raw, cv_att) as i32 - 2047
+}
 
 fn interval_semitones(param: usize) -> u8 {
     match param {
@@ -366,6 +396,7 @@ pub async fn run(
         jack_param,
         range,
         vpo,
+        cv_att,
         follow_tonic,
         _follow_scale,
         motion,
@@ -383,6 +414,7 @@ pub async fn run(
             p.jack.min(JACK_COUNT - 1),
             p.range,
             p.vpo,
+            att_from_pct(p.cv_att),
             p.follow_tonic,
             p.follow_scale,
             Motion::from_index(p.motion),
@@ -673,7 +705,10 @@ pub async fn run(
 
             let pos_fader = if jack_param == JACK_IN_POS {
                 let base = glob_position.get() as i32;
-                let cv = in_jack.as_ref().map(|j| j.get_value() as i32 - 2047).unwrap_or(0);
+                let cv = in_jack
+                    .as_ref()
+                    .map(|j| cv_mod_offset(j.get_value(), cv_att))
+                    .unwrap_or(0);
                 (base + cv).clamp(0, 4095) as u16
             } else {
                 glob_position.get()
@@ -681,7 +716,10 @@ pub async fn run(
 
             let func_fader = if jack_param == JACK_IN_FUNC {
                 let base = glob_function.get() as i32;
-                let cv = in_jack.as_ref().map(|j| j.get_value() as i32 - 2047).unwrap_or(0);
+                let cv = in_jack
+                    .as_ref()
+                    .map(|j| cv_mod_offset(j.get_value(), cv_att))
+                    .unwrap_or(0);
                 (base + cv).clamp(0, 4095) as u16
             } else {
                 glob_function.get()
