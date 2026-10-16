@@ -371,27 +371,40 @@ pub async fn run(
     storage: &ManagedStorage<Storage>,
 ) {
 
-    let (range, midi_out, midi_chan, midi_cc, led_color, nrpn, mix_mode, osc_b, p_dest, p_rate_mod) =
-        params.query(|p| {
-            (
-                p.range,
-                p.midi_out,
-                p.midi_channel,
-                p.midi_cc,
-                p.color,
-                p.nrpn,
-                p.mix_mode.min(3),
-                p.osc_b.min(1),
-                p.dest.min(DEST_COUNT - 1),
-                p.rate_mod.clamp(0, 100),
-            )
-        });
+    let (
+        range,
+        midi_out,
+        midi_chan,
+        midi_cc,
+        led_color,
+        nrpn,
+        mix_mode,
+        osc_b,
+        p_dest,
+        p_rate_mod,
+        p_mix_balance,
+    ) = params.query(|p| {
+        (
+            p.range,
+            p.midi_out,
+            p.midi_channel,
+            p.midi_cc,
+            p.color,
+            p.nrpn,
+            p.mix_mode.min(3),
+            p.osc_b.min(1),
+            p.dest.min(DEST_COUNT - 1),
+            p.rate_mod.clamp(0, 100),
+            p.mix_balance.clamp(0, 100),
+        )
+    });
 
-    // Configurator CV Dest / Rate Mod are start values; apply on each run()
+    // Configurator CV Dest / Rate Mod / Mix balance are start values; apply on each run()
     // (param edits restart run). Scene load can still override storage later.
     storage.modify_and_save(|s| {
         s.dest = p_dest;
         s.rate_mod = ((p_rate_mod as u32 * 4095) / 100) as u16;
+        s.mix_balance = ((p_mix_balance as u32 * 4095) / 100) as u16;
     });
 
     let speed_mult = 2u32.pow(params.query(|p| p.speed_mult).min(31) as u32);
@@ -431,7 +444,6 @@ pub async fn run(
     let glob_btn_flash_0 = app.make_global(0u16);
     let glob_btn_flash_1 = app.make_global(0u16);
     let glob_shift_focus = app.make_global(0xffu8);
-    let glob_storage_dirty = app.make_global(false);
     let die = app.use_die();
     let glob_chaos = app.make_global(MorphChaos::new());
 
@@ -568,6 +580,7 @@ pub async fn run(
                 symmetry_base,
                 rate_mod_base,
                 attenuation_base,
+                mix_balance,
             ) = storage.query(|s| {
                 (
                     s.clocked,
@@ -579,13 +592,10 @@ pub async fn run(
                     s.symmetry,
                     s.rate_mod,
                     s.layer_attenuation,
+                    s.mix_balance,
                 )
             });
-            // 0% = A, 50% = center, 100% = B (Xfade). Configurator / preset param.
-            let mix_balance = {
-                let pct = params.query(|p| p.mix_balance).clamp(0, 100) as u32;
-                ((pct * 4095) / 100) as u16
-            };
+            // 0% = A, 50% = center (~2048), 100% = B (Xfade); scene-persisted in storage.
 
             let cv_delta = in_val as i32 - 2047;
             let morph = cv_mod_u16(morph_base, destination == DEST_MORPH, cv_delta);
@@ -823,18 +833,19 @@ pub async fn run(
                 {
                     match latch_layer {
                         LatchLayer::Main => {
-                            storage.modify(|s| s.morph = new_value);
-                            glob_storage_dirty.set(true);
+                            storage.modify_and_save(|s| s.morph = new_value);
                         }
                         LatchLayer::Alt => {
                             glob_shift_focus.set(0);
-                            storage.modify(|s| s.layer_attenuation = new_value);
-                            glob_storage_dirty.set(true);
+                            storage.modify_and_save(|s| {
+                                s.layer_attenuation = new_value;
+                                // Ch0 Alt = output amp; same gesture trims CV in (manual: “CV-in amplitude”).
+                                s.in_att = new_value;
+                            });
                         }
                         LatchLayer::Third => {
                             fader_moved_0.set(true);
-                            storage.modify(|s| s.skew = new_value);
-                            glob_storage_dirty.set(true);
+                            storage.modify_and_save(|s| s.skew = new_value);
                         }
                     }
                 }
@@ -856,19 +867,16 @@ pub async fn run(
                 {
                     match latch_layer {
                         LatchLayer::Main => {
-                            storage.modify(|s| s.symmetry = new_value);
-                            glob_storage_dirty.set(true);
+                            storage.modify_and_save(|s| s.symmetry = new_value);
                         }
                         LatchLayer::Alt => {
                             glob_shift_focus.set(1);
-                            storage.modify(|s| s.layer_speed = new_value);
-                            glob_storage_dirty.set(true);
+                            storage.modify_and_save(|s| s.layer_speed = new_value);
                             time_calc(2047);
                         }
                         LatchLayer::Third => {
                             fader_moved_1.set(true);
-                            storage.modify(|s| s.warp = new_value);
-                            glob_storage_dirty.set(true);
+                            storage.modify_and_save(|s| s.warp = new_value);
                         }
                     }
                 }
@@ -1030,16 +1038,6 @@ pub async fn run(
         }
     };
 
-    let storage_flush = async {
-        loop {
-            app.delay_millis(40).await;
-            if glob_storage_dirty.get() {
-                glob_storage_dirty.set(false);
-                storage.modify_and_save(|_s| {});
-            }
-        }
-    };
-
     let scene_handler = async {
         loop {
             match app.wait_for_scene_event().await {
@@ -1062,17 +1060,14 @@ pub async fn run(
     };
 
     join(
-        join(
-            join5(
-                fut_audio,
-                fader_handler,
-                button_handler,
-                long_press_handler,
-                scene_handler,
-            ),
-            clock_handler,
+        join5(
+            fut_audio,
+            fader_handler,
+            button_handler,
+            long_press_handler,
+            scene_handler,
         ),
-        storage_flush,
+        clock_handler,
     )
     .await;
 }

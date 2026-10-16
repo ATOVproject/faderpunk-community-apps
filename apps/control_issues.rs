@@ -287,7 +287,7 @@ pub async fn run(
     let out_lo = scale_bits_7_12(lo_cc.into());
     let out_hi = scale_bits_7_12(hi_cc.into());
     let rate_period_ms = midi_rate_period_ms(midi_rate);
-    let gate_thresh_counts = volts_to_counts(gate_threshold, range);
+    let gate_thresh_counts = gate_threshold_to_counts(gate_threshold, range);
     let gate_hyst_counts = volts_to_counts(HYSTERESIS_VOLTS, range).max(1);
     let steps_u16 = if steps <= 1 { 0 } else { steps.clamp(2, 128) as u16 };
 
@@ -589,10 +589,8 @@ fn apply_transfer(value: i32, transfer: usize) -> u16 {
         1 => Curve::Logarithmic.at(value.clamp(0, 4095) as u16),
         2 => Curve::Exponential.at(value.clamp(0, 4095) as u16),
         3 => shape::s_curve_12bit(value.clamp(0, 4095) as u16),
-        4 => {
-            let signed = value - 2047;
-            (signed.unsigned_abs() as u64 + 2047).min(4095) as u16
-        }
+        // Full-wave rectify around mid-scale: 0 at center, full scale at either rail.
+        4 => ((value - 2047).unsigned_abs() * 2).min(4095) as u16,
         5 => shape::fold_12bit(value),
         _ => Curve::Linear.at(value.clamp(0, 4095) as u16),
     }
@@ -638,6 +636,7 @@ fn midi_rate_period_ms(rate_idx: usize) -> u32 {
     }
 }
 
+/// Absolute volts on the jack (e.g. Schmitt hysteresis), respecting each range’s span.
 fn volts_to_counts(volts: f32, range: Range) -> u16 {
     let v = if volts.is_finite() { volts.max(0.0) } else { 0.0 };
     match range {
@@ -647,6 +646,21 @@ fn volts_to_counts(volts: f32, range: Range) -> u16 {
             (2047.0 + (pos / 5.0) * 2048.0).clamp(0.0, 4095.0) as u16
         }
         Range::_0_10V => ((v.min(10.0) / 10.0) * 4095.0) as u16,
+    }
+}
+
+/// “Gate Threshold” is always a 0..10 knob in the Configurator; map that position
+/// linearly onto the active CV range so full travel stays usable on 0..5 V and ±5 V
+/// (raw volts would clamp anything above 5 V on those ranges).
+fn gate_threshold_to_counts(threshold_0_10: f32, range: Range) -> u16 {
+    let t = if threshold_0_10.is_finite() {
+        threshold_0_10.clamp(0.0, 10.0) / 10.0
+    } else {
+        0.0
+    };
+    match range {
+        Range::_0_5V | Range::_0_10V => (t * 4095.0) as u16,
+        Range::_Neg5_5V => (2047.0 + t * 2048.0).clamp(0.0, 4095.0) as u16,
     }
 }
 

@@ -1,0 +1,150 @@
+name: Release
+
+# Publishes a GitHub release when the "chore: prepare release" PR (opened by
+# prepare-release.yml from the `release` branch) is merged: every community app
+# is built as an installable .fpapp and zipped into one download.
+#
+# Built against faderpunk's current `main` -- the same ref the PR build check
+# and the Pages site use -- and the firmware commit is recorded in the release
+# notes, because an .fpapp is pinned to the firmware ABI it was built against.
+#
+# Merging also touches apps-catalog.json, so manual-pages.yml redeploys the
+# catalogue site and its downloads on its own.
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+
+permissions:
+  contents: write # create the tag and the release
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    # Only the merged release PR, and only from this repo's own `release`
+    # branch: a fork branch that happens to be called `release` must not
+    # qualify (its token would be read-only anyway).
+    if: >
+      github.event.pull_request.merged == true &&
+      github.head_ref == 'release' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      # Full history: the staleness check below compares the commit the
+      # release was prepared on with the one it was merged onto.
+      - name: Checkout the merged release
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+          path: faderpunk-community-apps
+          fetch-depth: 0
+
+      # A release PR is a snapshot. If an app or the catalog merged to main
+      # between "Prepare release" and this PR's merge, the ZIP would hold code
+      # its versions don't describe. Nothing is published yet, so
+      # failing here is safe: run Prepare release again.
+      - name: Refuse a stale release
+        working-directory: faderpunk-community-apps
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+        run: |
+          git fetch --quiet origin "refs/pull/$PR_NUMBER/head"
+          prepared_on=$(git rev-parse FETCH_HEAD^)
+          merged_onto=$(git rev-parse "$MERGE_SHA^")
+          .github/scripts/prepare-release.sh fresh "$prepared_on" "$merged_onto"
+
+      - name: Checkout faderpunk (build against current main)
+        uses: actions/checkout@v4
+        with:
+          repository: ATOVproject/faderpunk
+          path: faderpunk
+
+      # nightly first, stable second so stable ends up the default toolchain
+      # (see manual-pages.yml: fpapp's own build needs that).
+      - uses: dtolnay/rust-toolchain@nightly
+        with:
+          targets: thumbv8m.main-none-eabihf
+          components: rust-src
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: thumbv8m.main-none-eabihf
+
+      - name: Install ARM binutils
+        run: sudo apt-get update && sudo apt-get install -y binutils-arm-none-eabi
+
+      - name: Build every catalog app as a .fpapp
+        working-directory: faderpunk-community-apps
+        run: make fpapps FADERPUNK_DIR=../faderpunk
+
+      - name: Choose the tag
+        id: tag
+        working-directory: faderpunk-community-apps
+        run: |
+          base="release-$(date -u +%F)"
+          tag="$base"
+          n=2
+          # A second release on the same day gets a suffix, never a clobbered tag.
+          while gh release view "$tag" >/dev/null 2>&1 \
+              || git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null 2>&1; do
+            tag="$base-$n"
+            n=$((n + 1))
+          done
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+      - name: Zip every app
+        working-directory: faderpunk-community-apps
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          from zipfile import ZIP_DEFLATED, ZipFile
+
+          packages = sorted(Path("build/fpapps").glob("*.fpapp"))
+          expected = len(json.loads(Path("apps-catalog.json").read_text()))
+          if not packages or len(packages) != expected:
+              raise SystemExit(f"Expected {expected} FPApps, found {len(packages)}")
+          archive = Path("build") / f"faderpunk-community-apps-{os.environ['TAG']}.zip"
+          with ZipFile(archive, "w", compression=ZIP_DEFLATED) as out:
+              for package in packages:
+                  out.write(package, arcname=package.name)
+          print(f"{archive}: {len(packages)} apps")
+          PY
+
+      # The PR body is the table of bumps written by prepare-release.sh. It is
+      # passed through the environment and a file, never interpolated into the
+      # script, so its text can't be run as shell.
+      - name: Publish the release
+        working-directory: faderpunk-community-apps
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+        run: |
+          firmware=$(git -C ../faderpunk rev-parse HEAD)
+          {
+            printf '%s\n' "$PR_BODY" | sed '/^---$/,$d'
+            echo
+            echo "Every app is in \`faderpunk-community-apps-$TAG.zip\`: extract it and install the individual \`.fpapp\` files from **Apps > Installed Apps** in the Configurator."
+            echo
+            echo "Built against faderpunk [\`${firmware:0:7}\`](https://github.com/ATOVproject/faderpunk/commit/$firmware). Release PR: #$PR_NUMBER."
+          } > "$RUNNER_TEMP/release-notes.md"
+          gh release create "$TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$MERGE_SHA" \
+            --title "Community apps ${TAG#release-}" \
+            --notes-file "$RUNNER_TEMP/release-notes.md" \
+            "build/faderpunk-community-apps-$TAG.zip"
+          echo "Released [$TAG]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/tag/$TAG)." >> "$GITHUB_STEP_SUMMARY"

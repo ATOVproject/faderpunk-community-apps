@@ -713,7 +713,8 @@ pub async fn run(
     let mut midi_in = app.use_midi_input(midi_in_cfg, midi_in_ch);
     let midi = app.use_midi_output(midi_out_cfg, midi_out_ch, false);
     let quantizer = app.use_quantizer(range, vpo, bypass);
-    // Absolute tick for clock-gated CV.
+    // Clock-gated CV lengths: synchronous tick snapshot (no CLOCK_PUBSUB drain).
+    let ticks = || app.current_tick().unwrap_or(0);
     let gate_ms = gate_time_ms(gate_mode);
     let gate_ticks = gate_clock_ticks(gate_mode);
 
@@ -1082,7 +1083,7 @@ pub async fn run(
                         if let Some(ms) = gate_ms {
                             cv_gate_left = ms;
                         } else if let Some(len) = gate_ticks {
-                            cv_gate_deadline = Some((app.current_tick().unwrap_or(0), len));
+                            cv_gate_deadline = Some((ticks(), len));
                         }
                     } else if matches!(cv_voice, CvVoice::Playing { .. }) {
                         let mut gate_done = false;
@@ -1092,7 +1093,7 @@ pub async fn run(
                             gate_done = cv_gate_left == 0;
                         }
                     } else if let Some((start, len)) = cv_gate_deadline {
-                            if app.current_tick().unwrap_or(0).wrapping_sub(start) >= len {
+                            if ticks().wrapping_sub(start) >= len {
                                 gate_done = true;
                                 cv_gate_deadline = None;
                             }

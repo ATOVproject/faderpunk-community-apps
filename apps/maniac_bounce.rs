@@ -91,7 +91,7 @@ pub static CONFIG: Config<PARAMS> = Config::new(
 .add_param(Param::MidiIn)
 .add_param(Param::MidiChannel { name: "MIDI In CH" })
 .add_param(Param::MidiOut)
-.add_param(Param::MidiChannel { name: "MIDI Out" })
+.add_param(Param::MidiChannel { name: "MIDI Out CH" })
 .add_param(Param::MidiCc { name: "MIDI CC" })
 .add_param(Param::MidiNote { name: "MIDI Note" });
 
