@@ -15,13 +15,13 @@
     "appId": 104,
     "module": "echolot",
     "author": "kosmar",
-    "version": "0.1.0"
+    "version": "0.1.1"
   },
   {
     "appId": 110,
     "module": "control_issues",
     "author": "kosmar",
-    "version": "0.1.0"
+    "version": "0.1.1"
   },
   {
     "appId": 111,
@@ -39,7 +39,7 @@
     "appId": 115,
     "module": "ripppple",
     "author": "kosmar",
-    "version": "0.1.0"
+    "version": "0.1.1"
   },
   {
     "appId": 116,
@@ -51,19 +51,19 @@
     "appId": 117,
     "module": "maniac_bounce",
     "author": "kosmar",
-    "version": "0.1.0"
+    "version": "0.1.1"
   },
   {
     "appId": 102,
     "module": "fibonacci_gate",
     "author": "kosmar",
-    "version": "0.1.0"
+    "version": "0.1.1"
   },
   {
     "appId": 103,
     "module": "super_lfo",
     "author": "kosmar",
-    "version": "0.1.0"
+    "version": "0.1.1"
   },
   {
     "appId": 105,
@@ -75,7 +75,7 @@
     "appId": 106,
     "module": "vamp",
     "author": "kosmar",
-    "version": "0.1.0"
+    "version": "0.1.1"
   },
   {
     "appId": 107,
@@ -87,37 +87,37 @@
     "appId": 108,
     "module": "harmonica",
     "author": "kosmar",
-    "version": "0.1.0"
+    "version": "0.1.1"
   },
   {
     "appId": 109,
     "module": "loop_de_cay",
     "author": "kosmar",
-    "version": "0.1.0"
+    "version": "0.1.1"
   },
   {
     "appId": 112,
     "module": "bassment",
     "author": "kosmar",
-    "version": "0.1.0"
+    "version": "0.1.1"
   },
   {
     "appId": 113,
     "module": "contura",
     "author": "kosmar",
-    "version": "0.1.0"
+    "version": "0.1.1"
   },
   {
     "appId": 118,
     "module": "giant_steps",
     "author": "kosmar",
-    "version": "0.1.0"
+    "version": "0.1.1"
   },
   {
     "appId": 119,
     "module": "axis_matrix",
     "author": "kosmar",
-    "version": "0.1.0"
+    "version": "0.2.0"
   },
   {
     "appId": 120,
