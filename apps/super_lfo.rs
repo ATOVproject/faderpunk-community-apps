@@ -444,7 +444,6 @@ pub async fn run(
     let glob_btn_flash_0 = app.make_global(0u16);
     let glob_btn_flash_1 = app.make_global(0u16);
     let glob_shift_focus = app.make_global(0xffu8);
-    let glob_storage_dirty = app.make_global(false);
     let die = app.use_die();
     let glob_chaos = app.make_global(MorphChaos::new());
 
@@ -834,18 +833,19 @@ pub async fn run(
                 {
                     match latch_layer {
                         LatchLayer::Main => {
-                            storage.modify(|s| s.morph = new_value);
-                            glob_storage_dirty.set(true);
+                            storage.modify_and_save(|s| s.morph = new_value);
                         }
                         LatchLayer::Alt => {
                             glob_shift_focus.set(0);
-                            storage.modify(|s| s.layer_attenuation = new_value);
-                            glob_storage_dirty.set(true);
+                            storage.modify_and_save(|s| {
+                                s.layer_attenuation = new_value;
+                                // Ch0 Alt = output amp; same gesture trims CV in (manual: “CV-in amplitude”).
+                                s.in_att = new_value;
+                            });
                         }
                         LatchLayer::Third => {
                             fader_moved_0.set(true);
-                            storage.modify(|s| s.skew = new_value);
-                            glob_storage_dirty.set(true);
+                            storage.modify_and_save(|s| s.skew = new_value);
                         }
                     }
                 }
@@ -867,19 +867,16 @@ pub async fn run(
                 {
                     match latch_layer {
                         LatchLayer::Main => {
-                            storage.modify(|s| s.symmetry = new_value);
-                            glob_storage_dirty.set(true);
+                            storage.modify_and_save(|s| s.symmetry = new_value);
                         }
                         LatchLayer::Alt => {
                             glob_shift_focus.set(1);
-                            storage.modify(|s| s.layer_speed = new_value);
-                            glob_storage_dirty.set(true);
+                            storage.modify_and_save(|s| s.layer_speed = new_value);
                             time_calc(2047);
                         }
                         LatchLayer::Third => {
                             fader_moved_1.set(true);
-                            storage.modify(|s| s.warp = new_value);
-                            glob_storage_dirty.set(true);
+                            storage.modify_and_save(|s| s.warp = new_value);
                         }
                     }
                 }
@@ -1041,16 +1038,6 @@ pub async fn run(
         }
     };
 
-    let storage_flush = async {
-        loop {
-            app.delay_millis(40).await;
-            if glob_storage_dirty.get() {
-                glob_storage_dirty.set(false);
-                storage.modify_and_save(|_s| {});
-            }
-        }
-    };
-
     let scene_handler = async {
         loop {
             match app.wait_for_scene_event().await {
@@ -1073,17 +1060,14 @@ pub async fn run(
     };
 
     join(
-        join(
-            join5(
-                fut_audio,
-                fader_handler,
-                button_handler,
-                long_press_handler,
-                scene_handler,
-            ),
-            clock_handler,
+        join5(
+            fut_audio,
+            fader_handler,
+            button_handler,
+            long_press_handler,
+            scene_handler,
         ),
-        storage_flush,
+        clock_handler,
     )
     .await;
 }
