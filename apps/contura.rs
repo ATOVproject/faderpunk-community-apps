@@ -1719,7 +1719,8 @@ pub async fn run(
     let fut_scene = async {
         loop {
             match app.wait_for_scene_event().await {
-                SceneEvent::LoadScene(_) => {
+                SceneEvent::LoadScene(scene) => {
+                    storage.load_from_scene(scene).await;
                     let (i, p, e, s, o, m) = storage.query(|st| {
                         (
                             st.interval_saved,
@@ -1740,7 +1741,7 @@ pub async fn run(
                     let div = params.query(|p| p.division);
                     glob_div.set(RESOLUTION[div.min(RESOLUTION.len() - 1)]);
                 }
-                SceneEvent::SaveScene(_) => {}
+                SceneEvent::SaveScene(scene) => storage.save_to_scene(scene).await,
             }
         }
     };
