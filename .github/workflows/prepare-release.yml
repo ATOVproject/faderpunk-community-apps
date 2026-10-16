@@ -1,0 +1,106 @@
+name: Prepare release
+
+# Run by hand: Actions > Prepare release > Run workflow (on main).
+#
+# Works out which apps have unreleased changes (see
+# .github/scripts/prepare-release.sh for the rules), commits their version
+# bumps to the `release` branch and opens -- or updates -- a
+# "chore: prepare release" PR, the same shape as ATOVproject/faderpunk's.
+# Merging that PR makes release.yml publish a GitHub release with a ZIP of
+# every community app, and the Pages site redeploys with the new versions.
+#
+# "Dry run" only lists the bumps in the job summary and pushes nothing.
+#
+# PRs opened with the default GITHUB_TOKEN don't trigger other workflows, so
+# the required `gate` check won't start by itself: close and reopen the PR once
+# (a human event does trigger it), or store a fine-grained PAT / GitHub App
+# token as the RELEASE_TOKEN secret and the PR is opened under that identity
+# with checks running straight away.
+#
+# Opening the PR also needs Settings > Actions > General > "Allow GitHub
+# Actions to create and approve pull requests" -- unless RELEASE_TOKEN is set.
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry run: list the bumps in the job summary, push nothing"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+# One release PR at a time; a second run waits instead of racing the first.
+concurrency:
+  group: prepare-release
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.RELEASE_TOKEN || github.token }}
+    steps:
+      # Full history: the plan walks back to the commit that set each version.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.RELEASE_TOKEN || github.token }}
+
+      - name: Work out the bumps
+        id: plan
+        run: |
+          .github/scripts/prepare-release.sh plan > plan.json
+          count=$(jq length plan.json)
+          echo "count=$count" >> "$GITHUB_OUTPUT"
+          {
+            echo "## Release plan"
+            echo
+            if [ "$count" = "0" ]; then
+              echo "Nothing to release: no app has changed since its last version bump."
+            else
+              .github/scripts/prepare-release.sh body plan.json
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Commit the bumps to the release branch
+        if: steps.plan.outputs.count != '0' && !inputs.dry_run
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -C release
+          .github/scripts/prepare-release.sh apply plan.json
+          {
+            printf 'chore: prepare release\n\n'
+            .github/scripts/prepare-release.sh body plan.json
+          } > commit-message.txt
+          git add apps-catalog.json
+          git commit -q -F commit-message.txt
+          # The release branch is owned by this workflow: rebuild it from main
+          # every run, so re-running refreshes an open PR instead of stacking.
+          git push --force origin release
+
+      - name: Open or update the release PR
+        if: steps.plan.outputs.count != '0' && !inputs.dry_run
+        run: |
+          {
+            .github/scripts/prepare-release.sh body plan.json
+            echo
+            echo "---"
+            echo
+            echo "GitHub doesn't run workflows for PRs opened by Actions, so the required \`gate\` check won't start by itself: **close and reopen this PR once** to run it. Merging then publishes the release."
+            echo
+            echo "This PR is a snapshot. If an app, a manual or the catalog is merged to \`main\` before this PR, **run Prepare release again** (then close and reopen): the release refuses to publish a stale snapshot."
+          } > pr-body.md
+          existing=$(gh pr list --head release --base main --state open --json number --jq '.[0].number // empty')
+          if [ -n "$existing" ]; then
+            gh pr edit "$existing" --title "chore: prepare release" --body-file pr-body.md
+            url=$(gh pr view "$existing" --json url --jq .url)
+          else
+            url=$(gh pr create --base main --head release --title "chore: prepare release" --body-file pr-body.md)
+          fi
+          echo "Release PR: $url" >> "$GITHUB_STEP_SUMMARY"
+          echo "Close and reopen it once so the required checks run. Merge it before anything else touching apps, manuals or the catalog, or run this workflow again." >> "$GITHUB_STEP_SUMMARY"

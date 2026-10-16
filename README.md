@@ -40,6 +40,8 @@ If the repositories are not siblings, provide the Faderpunk checkout path:
 make fpapps FADERPUNK_DIR=/path/to/faderpunk
 ```
 
+Prebuilt packages: each [release](https://github.com/ATOVproject/faderpunk-community-apps/releases) carries a ZIP with every app as a `.fpapp`, extract it and install the ones you want. Releases are cut by the maintainer with the **Prepare release** workflow; see [CONTRIBUTING.md](CONTRIBUTING.md#releases).
+
 Connect Faderpunk normally, open **Apps**, scroll to **Installed Apps**, and
 install a package in one of the available slots. The installed app then appears in
 the normal app catalogue above and can be added to a layout.
