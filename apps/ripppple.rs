@@ -169,8 +169,9 @@ fn s_curve_12bit(value: u16) -> u16 {
     ((num + den / 2) / den).min(4095) as u16
 }
 
+/// Full-wave rectify around mid-scale: 0 at center, full scale at either rail.
 fn rectify_12bit(value: u16) -> u16 {
-    value.abs_diff(2047).saturating_add(2047).min(4095)
+    (value.abs_diff(2047) * 2).min(4095)
 }
 
 fn fold_12bit(mut value: i32) -> u16 {
@@ -580,8 +581,10 @@ pub async fn run(
     let midi_ccs = core::array::from_fn::<_, CHANNELS, _>(|w| snapshot.cc_for(w, snapshot.nrpn));
     let lfo_speed_mult = 2u32.pow(snapshot.lfo_speed_mult.min(31) as u32);
 
-    // Configurator "Process B/C/D" are start values; applied once per run() (a
-    // host param edit restarts run). A scene load overrides storage later.
+    // Configurator "Process B/C/D" seed storage on each run(). Device
+    // Shift+long range changes also restart run() to rebind jacks — Process
+    // long-press updates ParamStore too, so this seed no longer clobbers
+    // Soft/Rect back to Fold (#38).
     let p_process = snapshot.process;
     storage.modify_and_save(|s| {
         for (slot, p) in s.process.iter_mut().zip(p_process.iter()) {
@@ -1143,12 +1146,20 @@ pub async fn run(
                     );
                 }
                 // Long without Shift → Process cycle (cancelled if fader moved).
+                // Keep ParamStore in sync so a later range-change restart
+                // (which re-seeds storage from params) does not wipe Soft/Rect
+                // back to Fold — see #38.
                 1..=3 if !shift && long => {
                     let i = chan - 1;
                     let next = storage.modify_and_save(|s| {
                         s.process[i] = Process::from_u8(s.process[i]).next().as_u8();
                         s.process[i]
                     });
+                    params
+                        .update(|p| {
+                            p.process[i] = next as usize;
+                        })
+                        .await;
                     glob_process.modify(|p| {
                         let mut arr = *p;
                         arr[i] = next;

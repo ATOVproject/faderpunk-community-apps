@@ -41,6 +41,7 @@ cases=(
   # version bump: one or more existing entries, version only, increasing, by the owner
   "version-bump|pass|"
   "version-bump-multiple|pass|"
+  "version-bump-release-bot|pass|"
   "version-bump-decrease|fail|must be strictly greater"
   "version-bump-multiple-one-decrease|fail|must be strictly greater"
   "version-bump-other-field|fail|may only change the 'version' field"
