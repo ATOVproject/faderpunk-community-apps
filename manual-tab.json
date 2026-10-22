@@ -1441,6 +1441,46 @@
     ]
   },
   {
+    "appId": 125,
+    "title": "Techno Hi-Hat",
+    "description": "Clocked hi-hat matrix with variations and accents",
+    "icon": "euclid",
+    "color": "Blue",
+    "text": "Techno Hi-Hat is a single-channel clocked pattern generator featuring a 4x4 matrix of core archetypes and groove variations, Euclidean velocity accents, and configurable Gate Out routing.\n\n- **Main fader** selects between four core pattern families: Off-beat, 8th-note, 16th-note, and On-beat/Industrial.\n- **Fn + Fader** (Third layer) morphs the selected family through four syncopated groove variations (pure, pickup, gallop/ducked, and peak).\n- **Shift + Fader** (Alt layer) distributes velocity accents across active hits using a Euclidean algorithm (0% = soft groove velocity, 100% = full accent velocity on all hits).\n- **Jack** selects between three 10V trigger output modes: All Hits, Accents Only, or Ghosts Only.\n- **Short press** toggles mute on button release, protecting against accidental mutes while scrubbing **Fn + Fader**.\n- **Top LED** flashes on hits (bright for accented, dim for unaccented ghost notes), or displays red for accent amount and violet for variation index while modifiers are held.\n- **Bottom LED** indicates the active pattern family by color.",
+    "channels": [
+      {
+        "jackTitle": "Gate Out",
+        "jackDescription": "10V trigger out (All Hits, Accents Only, or Ghosts Only).",
+        "faderTitle": "Pattern Family",
+        "faderDescription": "Selects between 4 core pattern families (Off-beat, 8th, 16th, On-beat).",
+        "faderPlusShiftTitle": "Euclidean Accents",
+        "faderPlusShiftDescription": "Amount of accented hits using a Euclidean distribution.",
+        "faderPlusFnTitle": "Pattern Variation",
+        "faderPlusFnDescription": "Morphs the selected pattern family through 4 groove variations (Pure, Pickup, Gallop/Ducked, Peak).",
+        "fnTitle": "Mute",
+        "fnDescription": "Short press to mute or unmute the channel.",
+        "ledTop": "Main: Flashes on hits (bright = accent, dim = groove).",
+        "ledTopPlusShift": "Alt layer: Accent level in red.",
+        "ledTopPlusFn": "Third layer: Pattern variation in violet.",
+        "ledBottom": "Indicates the current pattern family by color."
+      }
+    ],
+    "params": [
+      "MIDI Channel",
+      "MIDI Note",
+      "GATE %",
+      "Jack",
+      "Color",
+      "MIDI Out"
+    ],
+    "storage": [
+      "Pattern family",
+      "Accents",
+      "Variation",
+      "Muted"
+    ]
+  },
+  {
     "appId": 126,
     "title": "Techno Kick",
     "description": "Techno kick pattern selector with phrase fills",
