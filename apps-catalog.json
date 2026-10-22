@@ -154,5 +154,11 @@
     "module": "techno_hihat",
     "author": "andreyapanov",
     "version": "0.1.0"
+  },
+  {
+    "appId": 126,
+    "module": "techno_kick",
+    "author": "andreyapanov",
+    "version": "0.1.0"
   }
 ]

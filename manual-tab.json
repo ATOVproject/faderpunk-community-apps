@@ -1479,5 +1479,47 @@
       "Variation",
       "Muted"
     ]
+  },
+  {
+    "appId": 126,
+    "title": "Techno Kick",
+    "description": "Techno kick pattern selector with phrase fills",
+    "icon": "euclid",
+    "color": "Blue",
+    "text": "Techno Kick is a single-channel kick drum sequencer designed for structured live performance, featuring bar-quantized pattern cueing, automatic phrase turnarounds, and configurable Gate Out routing.\n\n- **Main fader** silently cues one of 6 kick patterns: Standard 4x4, Karenn Lurch, Warehouse Heartbeat, Birmingham Tresillo, Broken Tail, and Asymmetric Minimal.\n- **Shift + short press** arms the cued pattern to switch on the exact downbeat of the next bar, ensuring strict phase alignment with the master clock.\n- **Shift + Fader** (Alt layer) sets the turnaround interval: Off, every 8 bars, 4 bars, 2 bars, or every bar.\n- **Fn + Fader** (Third layer) dictates the fill density during the turnaround bar: Off (at bottom), or scaling from a single 16th-note pickup to a 4-hit industrial barrage.\n- **Jack** selects between three 10V trigger output modes: All Hits, Base Only, or Fills Only.\n- **Short press** toggles mute on release, protected against accidental mutes during long presses or fader scrubs.\n- **Top LED** flashes in the active pattern color on hits, or displays red for the turnaround interval and violet for fill density while modifiers are held.\n- **Bottom LED** shows the cued pattern color, pulsing on quarter-notes when cued and flashing white on beats when armed for the next bar.",
+    "channels": [
+      {
+        "jackTitle": "Gate Out",
+        "jackDescription": "10V trigger out (All Hits, Base Only, or Fills Only).",
+        "faderTitle": "Cue Pattern",
+        "faderDescription": "Cues one of 6 kick patterns. Shift + short press button to arm for the next bar.",
+        "faderPlusShiftTitle": "Turnaround Interval",
+        "faderPlusShiftDescription": "Sets phrase fill interval: Off, 8 bars, 4 bars, 2 bars, or Every bar.",
+        "faderPlusFnTitle": "Fill Density",
+        "faderPlusFnDescription": "Sets turnaround fill intensity: Off at bottom, scaling from a single 16th pickup to a 4-hit barrage.",
+        "fnTitle": "Mute",
+        "fnDescription": "Short press mutes or unmutes the kick output.",
+        "fnPlusShiftTitle": "Arm Pattern",
+        "fnPlusShiftDescription": "Shift + short press arms the cued pattern to switch on the next bar downbeat.",
+        "ledTop": "Main: Flashes in active pattern color on kick hits.",
+        "ledTopPlusShift": "Alt layer: Turnaround interval in red.",
+        "ledTopPlusFn": "Third layer: Fill density in violet.",
+        "ledBottom": "Shows cued pattern color (pulses when cued, flashes white when armed for next bar)."
+      }
+    ],
+    "params": [
+      "MIDI Channel",
+      "MIDI Note",
+      "GATE %",
+      "Jack",
+      "MIDI Out"
+    ],
+    "storage": [
+      "Active pattern",
+      "Cued pattern",
+      "Turnaround interval",
+      "Fill density",
+      "Muted"
+    ]
   }
 ]
