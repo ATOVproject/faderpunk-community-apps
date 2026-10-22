@@ -45,17 +45,17 @@ const FILL_VELOCITY: u16 = 3300; // ~80% velocity (MIDI 103) for turnaround fill
 // 5 = Fill Stage 4 (fires on turnaround bar when Fill Density is Stage 4)
 const PATTERNS: &[[u8; PATTERN_LEN]] = &[
     // 1. Standard 4x4 (Bottom Hard-Stop)
-    [1, 0, 0, 5,  1, 0, 0, 4,  1, 0, 0, 4,  1, 5, 3, 2],
+    [1, 0, 0, 5, 1, 0, 0, 4, 1, 0, 0, 4, 1, 5, 3, 2],
     // 2. Karenn Lurch (Blawan-style broken stomp: 1, 2&, 3, 4&)
-    [1, 0, 0, 5,  0, 0, 1, 4,  1, 0, 0, 4,  5, 3, 1, 2],
+    [1, 0, 0, 5, 0, 0, 1, 4, 1, 0, 0, 4, 5, 3, 1, 2],
     // 3. Warehouse Heartbeat (1..a 2... 3..a 4...)
-    [1, 0, 0, 1,  1, 0, 0, 4,  1, 0, 0, 1,  1, 5, 3, 2],
+    [1, 0, 0, 1, 1, 0, 0, 4, 1, 0, 0, 1, 1, 5, 3, 2],
     // 4. Birmingham Tresillo (3-3-2 Syncopated Industrial)
-    [1, 0, 0, 1,  0, 0, 1, 4,  1, 0, 0, 1,  0, 5, 1, 2],
+    [1, 0, 0, 1, 0, 0, 1, 4, 1, 0, 0, 1, 0, 5, 1, 2],
     // 5. Broken Tail (1... 2... 3..a .&a)
-    [1, 0, 0, 5,  1, 0, 0, 4,  1, 0, 0, 1,  3, 1, 5, 1],
+    [1, 0, 0, 5, 1, 0, 0, 4, 1, 0, 0, 1, 3, 1, 5, 1],
     // 6. Asymmetric Minimal (Sparse: 1, 2&, 4 - Top Hard-Stop)
-    [1, 0, 0, 0,  0, 0, 1, 4,  0, 0, 3, 0,  1, 5, 3, 2],
+    [1, 0, 0, 0, 0, 0, 1, 4, 0, 0, 3, 0, 1, 5, 3, 2],
 ];
 
 const PATTERN_COLORS: [Color; 6] = [
@@ -105,9 +105,7 @@ pub static CONFIG: Config<PARAMS> = Config::new(
 .add_param(Param::MidiChannel {
     name: "MIDI Channel",
 })
-.add_param(Param::MidiNote {
-    name: "MIDI Note",
-})
+.add_param(Param::MidiNote { name: "MIDI Note" })
 .add_param(Param::i32 {
     name: "GATE %",
     min: 1,
@@ -269,22 +267,12 @@ pub async fn run(
     turnaround_glob.set(value_to_turnaround_bars(saved_shift));
     fill_stage_glob.set(value_to_fill_stage(saved_fn));
 
-    leds.set(
-        0,
-        Led::Bottom,
-        PATTERN_COLORS[init_cued],
-        Brightness::Low,
-    );
+    leds.set(0, Led::Bottom, PATTERN_COLORS[init_cued], Brightness::Low);
     if mute {
         leds.unset(0, Led::Button);
         leds.unset(0, Led::Top);
     } else {
-        leds.set(
-            0,
-            Led::Button,
-            PATTERN_COLORS[init_active],
-            LED_BRIGHTNESS,
-        );
+        leds.set(0, Led::Button, PATTERN_COLORS[init_active], LED_BRIGHTNESS);
     }
 
     // 1. Clock & Phase-Locked Pattern/Fill Execution Task
@@ -367,8 +355,8 @@ pub async fn run(
                         let turnaround_bars = turnaround_glob.get();
                         let max_fill_code = fill_stage_glob.get();
 
-                        let is_turnaround_bar = turnaround_bars > 0
-                            && (bar % turnaround_bars) == (turnaround_bars - 1);
+                        let is_turnaround_bar =
+                            turnaround_bars > 0 && (bar % turnaround_bars) == (turnaround_bars - 1);
 
                         let step_code = PATTERNS[active_pat][step];
                         let is_main_hit = step_code == 1;
@@ -647,12 +635,7 @@ pub async fn run(
                         leds.unset(0, Led::Top);
                         out_jack.set_low().await;
                     } else {
-                        leds.set(
-                            0,
-                            Led::Button,
-                            PATTERN_COLORS[active_idx],
-                            LED_BRIGHTNESS,
-                        );
+                        leds.set(0, Led::Button, PATTERN_COLORS[active_idx], LED_BRIGHTNESS);
                     }
                 }
                 SceneEvent::SaveScene(scene) => {
@@ -703,7 +686,13 @@ pub async fn run(
 
     join(
         long_press,
-        join5(fut_clock, fut_button, fut_fader, scene_handler, shift_handler),
+        join5(
+            fut_clock,
+            fut_button,
+            fut_fader,
+            scene_handler,
+            shift_handler,
+        ),
     )
     .await;
 }
