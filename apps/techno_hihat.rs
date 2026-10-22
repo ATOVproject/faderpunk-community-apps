@@ -34,53 +34,53 @@ const JACK_OUT_GHOSTS: usize = 2;
 
 // 12-bit MIDI velocity levels (libfp scales 0..=4095 to MIDI 0..=127)
 const ACCENT_VELOCITY: u16 = 4095; // ~127 MIDI velocity
-const BASE_VELOCITY: u16 = 2100;   // ~65 MIDI velocity for unaccented ghost/groove hits
+const BASE_VELOCITY: u16 = 2100; // ~65 MIDI velocity for unaccented ghost/groove hits
 
 // 4 Families (Main Fader) x 4 Variations (Fn + Fader)
 const PATTERNS: [[[u8; PATTERN_LEN]; VARIATIONS]; FAMILIES] = [
     // Family 0 (Bottom): Off-Beat Archetypes
     [
         // Var 0: Pure Off-Beat (..x. ..x. ..x. ..x.)
-        [0, 0, 1, 0,  0, 0, 1, 0,  0, 0, 1, 0,  0, 0, 1, 0],
+        [0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0],
         // Var 1: Off-Beat + Bar-End 16th Pickup (..x. ..x. ..x. ..xx)
-        [0, 0, 1, 0,  0, 0, 1, 0,  0, 0, 1, 0,  0, 0, 1, 1],
+        [0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 1],
         // Var 2: Half-Bar Gallop (..x. ..xx ..x. ..xx)
-        [0, 0, 1, 0,  0, 0, 1, 1,  0, 0, 1, 0,  0, 0, 1, 1],
+        [0, 0, 1, 0, 0, 0, 1, 1, 0, 0, 1, 0, 0, 0, 1, 1],
         // Var 3: Full 909 Gallop (..xx ..xx ..xx ..xx)
-        [0, 0, 1, 1,  0, 0, 1, 1,  0, 0, 1, 1,  0, 0, 1, 1],
+        [0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 1, 1],
     ],
     // Family 1 (Lower-Mid): 8th-Note Archetypes
     [
         // Var 0: Straight 8ths (x.x. x.x. x.x. x.x.)
-        [1, 0, 1, 0,  1, 0, 1, 0,  1, 0, 1, 0,  1, 0, 1, 0],
+        [1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0],
         // Var 1: 8ths + Bar-End Pickup (x.x. x.x. x.x. x.xx)
-        [1, 0, 1, 0,  1, 0, 1, 0,  1, 0, 1, 0,  1, 0, 1, 1],
+        [1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 1],
         // Var 2: Alternating Chug (x.x. x.xx x.x. x.xx)
-        [1, 0, 1, 0,  1, 0, 1, 1,  1, 0, 1, 0,  1, 0, 1, 1],
+        [1, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 1, 0, 1, 1],
         // Var 3: Driving Chug (x.xx x.xx x.xx x.xx)
-        [1, 0, 1, 1,  1, 0, 1, 1,  1, 0, 1, 1,  1, 0, 1, 1],
+        [1, 0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1],
     ],
     // Family 2 (Upper-Mid): 16th-Note Archetypes
     [
         // Var 0: Rolling 16ths (xxxx xxxx xxxx xxxx)
-        [1, 1, 1, 1,  1, 1, 1, 1,  1, 1, 1, 1,  1, 1, 1, 1],
+        [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
         // Var 1: Breathing / Ducked 16ths - drops downbeats (.xxx .xxx .xxx .xxx)
-        [0, 1, 1, 1,  0, 1, 1, 1,  0, 1, 1, 1,  0, 1, 1, 1],
+        [0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1],
         // Var 2: 3-16th Stutter Roll (xxx. xxx. xxx. xxxx)
-        [1, 1, 1, 0,  1, 1, 1, 0,  1, 1, 1, 0,  1, 1, 1, 1],
+        [1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 1],
         // Var 3: Syncopated Off-Grid 16ths (.xx. .xx. .xx. .xxx)
-        [0, 1, 1, 0,  0, 1, 1, 0,  0, 1, 1, 0,  0, 1, 1, 1],
+        [0, 1, 1, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 1, 1, 1],
     ],
     // Family 3 (Top): On-Beat / Industrial Archetypes
     [
         // Var 0: Straight 4x4 On-Beat (x... x... x... x...)
-        [1, 0, 0, 0,  1, 0, 0, 0,  1, 0, 0, 0,  1, 0, 0, 0],
+        [1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0],
         // Var 1: Tresillo 3-3-2 (x..x ..x. x..x ..x.)
-        [1, 0, 0, 1,  0, 0, 1, 0,  1, 0, 0, 1,  0, 0, 1, 0],
+        [1, 0, 0, 1, 0, 0, 1, 0, 1, 0, 0, 1, 0, 0, 1, 0],
         // Var 2: Industrial Syncopated Clank (x..x x... x..x x.x.)
-        [1, 0, 0, 1,  1, 0, 0, 0,  1, 0, 0, 1,  1, 0, 1, 0],
+        [1, 0, 0, 1, 1, 0, 0, 0, 1, 0, 0, 1, 1, 0, 1, 0],
         // Var 3: Double-Tap Stomp (xx.. xx.. xx.. xx..)
-        [1, 1, 0, 0,  1, 1, 0, 0,  1, 1, 0, 0,  1, 1, 0, 0],
+        [1, 1, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0],
     ],
 ];
 
@@ -139,9 +139,7 @@ pub static CONFIG: Config<PARAMS> = Config::new(
 .add_param(Param::MidiChannel {
     name: "MIDI Channel",
 })
-.add_param(Param::MidiNote {
-    name: "MIDI Note",
-})
+.add_param(Param::MidiNote { name: "MIDI Note" })
 .add_param(Param::i32 {
     name: "GATE %",
     min: 1,
@@ -589,7 +587,13 @@ pub async fn run(
 
     join(
         long_press,
-        join5(fut_clock, fut_button, fut_fader, scene_handler, shift_handler),
+        join5(
+            fut_clock,
+            fut_button,
+            fut_fader,
+            scene_handler,
+            shift_handler,
+        ),
     )
     .await;
 }
