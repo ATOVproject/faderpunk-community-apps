@@ -97,7 +97,7 @@ const Page = () => (
     <p className="mb-6 max-w-[60ch]">
       Every app submitted to faderpunk-community-apps. Download a{" "}
       <code>.fpapp</code> and install it from{" "}
-      <strong>Apps &gt; Installed Apps</strong> in the Configurator, or build
+      the <strong>Community</strong> tab in the Configurator, or build
       from source with <code>fpapp build-community</code>. Unofficial,
       community-maintained, not affiliated with ATOV.
     </p>
@@ -154,8 +154,8 @@ const body = renderToStaticMarkup(<Page />).replaceAll('src="/img/', `src="${bas
 // and leave the reader scrolling a box inside a page. It's also
 // cross-origin, so the parent can't measure us directly. So report our
 // height instead and let it resize; see CommunityCatalogue.tsx in
-// faderpunk, which listens for exactly this message and checks the
-// origin before trusting it. Standalone viewers just ignore it.
+// faderpunk, which listens for exactly these messages and checks the
+// origin before trusting them. Standalone viewers just ignore it.
 const RESIZE_SCRIPT = `
 (function () {
   if (window.parent === window) return;
@@ -172,6 +172,21 @@ const RESIZE_SCRIPT = `
   // spontaneous reports alone lose the race and we'd never speak again.
   window.addEventListener("message", function (event) {
     if (event.data && event.data.type === "fp-catalogue-request-height") post();
+  });
+  // The frame is as tall as the whole page, so the browser has nothing to
+  // scroll inside it and an in-page link (the contents list) would appear
+  // to do nothing. Hand the target's position to the embedder, which
+  // scrolls its own page instead.
+  document.addEventListener("click", function (event) {
+    var link = event.target && event.target.closest && event.target.closest('a[href^="#"]');
+    if (!link) return;
+    var target = document.getElementById(decodeURIComponent(link.getAttribute("href").slice(1)));
+    if (!target) return;
+    event.preventDefault();
+    window.parent.postMessage({
+      type: "fp-catalogue-scroll",
+      top: target.getBoundingClientRect().top + window.pageYOffset
+    }, "*");
   });
   if (window.ResizeObserver) new ResizeObserver(postIfChanged).observe(document.documentElement);
   window.addEventListener("load", post);
