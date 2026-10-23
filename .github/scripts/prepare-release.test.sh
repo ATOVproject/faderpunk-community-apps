@@ -60,7 +60,12 @@ cat >manual-tab.json <<'EOF'
 EOF
 commit "feat: add apps"
 
-check "a fresh catalog has nothing to release" "[]" "$(summary)"
+# No release-* tag yet: nothing has been published, so every app is new.
+check "before any release, every app is new" \
+  '[{"module":"a","from":"0.1.0","to":"0.1.0","level":"new","n":1},{"module":"b","from":"0.1.0","to":"0.1.0","level":"new","n":1},{"module":"c","from":"0.1.0","to":"0.1.0","level":"new","n":1},{"module":"d","from":"0.1.0","to":"0.1.0","level":"new","n":1},{"module":"e","from":"0.1.0","to":"0.1.0","level":"new","n":1},{"module":"f","from":"1.2.3","to":"1.2.3","level":"new","n":1},{"module":"g","from":"0.1.0","to":"0.1.0","level":"new","n":1}]' \
+  "$(summary)"
+git tag release-1                                         # release.yml tags what it publishes
+check "a released catalog has nothing to release" "[]" "$(summary)"
 
 touch_app a; commit "fix: A thing (#1)"
 touch_app b; commit "feat: B new thing (#2)"
@@ -111,6 +116,7 @@ check "body: a row per app" "yes" "$(grep -qF '| A (`a`) | 0.1.0 → 0.2.0 | min
 
 # --- once the bumps are committed there is nothing left to release ------------
 commit "chore: prepare release"
+git tag release-2
 release_sha="$(git rev-parse HEAD)"
 check "after the release commit: nothing to release" "[]" "$(summary)"
 
@@ -118,6 +124,47 @@ check "after the release commit: nothing to release" "[]" "$(summary)"
 touch_app b; commit "fix: B follow-up (#12)"
 check "next cycle only sees newer changes" \
   '[{"module":"b","from":"0.2.0","to":"0.2.1","level":"patch","n":1}]' "$(summary)"
+
+# --- new apps: in the catalog, but not in the last release -------------------
+add_app() { # module appId title
+  echo "// $1" >"apps/$1.rs"
+  jq -c --arg m "$1" --argjson id "$2" '. + [{appId: $id, module: $m, author: "x", version: "0.1.0"}]' apps-catalog.json >c.tmp && mv c.tmp apps-catalog.json
+  jq -c --argjson id "$2" --arg t "$3" '. + [{appId: $id, title: $t, text: "new"}]' manual-tab.json >m.tmp && mv m.tmp manual-tab.json
+}
+add_app h 107 H; commit "feat: add H (#16)"
+added_h="$(git rev-parse HEAD)"
+add_app i 108 I; commit "feat: add I (#17)"
+touch_app i; commit "fix: I thing (#18)"
+manual_text 107 "h rewritten"; commit "docs: H manual (#19)"
+
+"$PREPARE" plan >plan.json
+pick() { jq -c --arg m "$1" '[.[] | select(.module == $m) | {module, from, to, level, n: (.changes | length)}]' plan.json; }
+check "new: an app added since the last release ships as it is" \
+  '[{"module":"h","from":"0.1.0","to":"0.1.0","level":"new","n":2}]' "$(pick h)"
+check "new: its commits since the last release are the context" \
+  '["app feat: add H (#16)","manual docs: H manual (#19)"]' \
+  "$(jq -c '[.[] | select(.module == "h") | .changes[] | "\(.kind) \(.subject)"]' plan.json)"
+check "new: a code change after it was added still bumps it" \
+  '[{"module":"i","from":"0.1.0","to":"0.1.1","level":"patch","n":1}]' "$(pick i)"
+check "new: an app already in the last release is not new" '[]' "$(pick c)"
+
+body="$("$PREPARE" body plan.json)"
+check "body: bumps and new apps are counted apart" "yes" \
+  "$(grep -qF 'Merging this PR bumps the version of 2 app(s), ships 1 new app(s) for the first time and publishes a release' <<<"$body" && echo yes || echo no)"
+check "body: a new app's row has no bump" "yes" "$(grep -qF '| H (`h`) | 0.1.0 | new |' <<<"$body" && echo yes || echo no)"
+jq '[.[] | select(.level == "new")]' plan.json >new.json
+check "body: release notes for new apps only" \
+  "This release ships 1 new app(s) for the first time. Its ZIP holds every community app." \
+  "$("$PREPARE" body new.json release | head -n1)"
+
+"$PREPARE" apply plan.json
+check "apply: a new app keeps its version" '"0.1.0"' "$(jq -c '.[] | select(.module == "h") | .version' apps-catalog.json)"
+git checkout -q apps-catalog.json
+
+git tag release-3                                         # h ships
+check "new: once released, an app is no longer new" '[]' "$("$PREPARE" plan | jq -c '[.[] | select(.module == "h")]')"
+check "new: planning a ref before that release still sees it as new" \
+  '["new"]' "$("$PREPARE" plan "$added_h" | jq -c '[.[] | select(.module == "h") | .level]')"
 
 # --- a release PR that went stale -------------------------------------------
 fresh() { "$PREPARE" fresh "$1" "$2" >/dev/null 2>&1 && echo fresh || echo stale; }
