@@ -160,5 +160,11 @@
     "module": "techno_kick",
     "author": "andreyapanov",
     "version": "0.1.0"
+  },
+  {
+    "appId": 127,
+    "module": "macro_control",
+    "author": "ArthurGibert",
+    "version": "0.1.0"
   }
 ]
