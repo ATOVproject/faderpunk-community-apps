@@ -1523,6 +1523,107 @@
     ]
   },
   {
+    "appId": 129,
+    "title": "ADSR 3ch",
+    "description": "ADSR envelope with decay and release on one fader, plus an ASR output",
+    "icon": "ad-env",
+    "color": "Yellow",
+    "text": "A compact gate-triggered ADSR on three channels: Attack, a shared Decay / Release time, and Sustain. Decay and Release always use the same time and the same curve. Patch a trigger or gate into channel 1, take the ADSR from channel 2 and an ASR from channel 3.\n\n#### Outputs\n- **Channel 2** — the ADSR envelope (0-10V)\n- **Channel 3** — an ASR envelope (0-10V): the same attack and release times and curves, but it rises to full scale and holds there for as long as the gate is high\n\n#### Gates\n- **Gate In** (channel 1 jack) — works like the AD envelope's input: a rising edge above about 1V starts the envelope, and a falling edge releases it\n- **Shift + button 1** starts a manual gate that lasts while the button is held. Let go of Shift and keep holding the button to adjust the main faders (for example Sustain) while it is on\n- **MIDI In** note-on/off also gates it (set MIDI In and MIDI Channel in the params). Overlapping sources hold the gate until all have let go\n- **Shift + fader 1** sets the minimum gate length, as in AD (10 ms to about 4 s). Short triggers are stretched to this length, so a trigger can run through the sustain stage before it releases\n\n#### Attenuators\n**Shift + fader** on the ADSR output's channel (channel 2) and on the ASR output's channel (channel 3) attenuates that output, as in AD. Each output has its own attenuator, and the MIDI output follows the ADSR attenuator.\n\n#### Shapes\nEvery button cycles a curve: **Linear** (yellow), **Log** (cyan, snappy: fast start, slow finish) and **Exp** (pink, swelling: slow start, fast finish). The ADSR has one curve for its attack (button 1) and one shared by its decay and release (button 2), and the ASR output has its own (button 3), used for both its attack and its release. Every stage ramps from wherever the level currently is to its target, so changing curves, releasing the gate mid-stage, or retriggering during the release never makes the output jump.\n\n#### Times\nEach time fader sets the time for a full-scale sweep, from about 2 ms to 8 seconds (exponential response). A partial sweep (a retrigger from a half-way level, or a sustain level below the top) takes proportionally less. Decay moves toward the Sustain level, which can be changed live.\n\n#### Mute\n**Long press** the channel 2 button (the ADSR output's channel) to mute the ADSR output and its MIDI output, and the channel 3 button (the last channel) to mute the ASR output. A muted output's button goes dark. The envelopes keep running.\n\n#### LEDs\n- **Top** — each fader's value, in the colour of that channel's curve; the active stage glows white. Hold Shift to see the minimum gate length and the attenuators in red\n- **Bottom** — channel 1: gate (red); channels 2 and 3: ADSR and ASR level",
+    "channels": [
+      {
+        "jackTitle": "Trigger / Gate In",
+        "jackDescription": "Gate input; a rising edge above about 1V starts the envelope, a short trigger is stretched to the minimum gate length.",
+        "faderTitle": "Attack",
+        "faderDescription": "Time to rise from 0 to full scale (ADSR and ASR).",
+        "faderPlusShiftTitle": "Minimum gate length",
+        "faderPlusShiftDescription": "Stretches short triggers to this length, 10 ms to about 4 s.",
+        "fnTitle": "ADSR attack curve",
+        "fnDescription": "Tap to cycle Linear, Log and Exp. Shift + hold starts the manual gate.",
+        "ledTop": "Attack time; white while the attack stage runs. Red minimum gate length with Shift held.",
+        "ledBottom": "Red when the gate is high."
+      },
+      {
+        "jackTitle": "ADSR Out",
+        "jackDescription": "ADSR envelope output, 0-10V.",
+        "faderTitle": "Decay / Release",
+        "faderDescription": "Time for both the decay (down to the Sustain level) and the release (down to 0), ADSR and ASR.",
+        "fnTitle": "ADSR decay / release curve / ADSR mute",
+        "fnDescription": "Tap to cycle Linear, Log and Exp. Long press to mute the ADSR output.",
+        "ledTop": "Decay / Release time; white while either stage runs. Red attenuator level with Shift held.",
+        "ledBottom": "ADSR level in white.",
+        "faderPlusShiftTitle": "ADSR attenuator",
+        "faderPlusShiftDescription": "Scales the ADSR output level, 0 to full."
+      },
+      {
+        "jackTitle": "ASR Out",
+        "jackDescription": "ASR envelope output, 0-10V: the same attack and release as the ADSR.",
+        "faderTitle": "Sustain",
+        "faderDescription": "Level held while the gate stays high (ADSR only). Can be moved live.",
+        "ledTop": "Sustain level; white while sustaining. Red attenuator level with Shift held.",
+        "ledBottom": "ASR level in white.",
+        "faderPlusShiftTitle": "ASR attenuator",
+        "faderPlusShiftDescription": "Scales the ASR output level, 0 to full.",
+        "fnTitle": "ASR curve / ASR mute",
+        "fnDescription": "Tap to cycle Linear, Log and Exp for the ASR's attack and release. Long press to mute the ASR output."
+      }
+    ],
+    "params": [
+      "MIDI In",
+      "MIDI Channel",
+      "MIDI Out",
+      "MIDI CC",
+      "MIDI NRPN"
+    ],
+    "storage": [
+      "Attack, Decay / Release and Sustain fader positions",
+      "Minimum gate length",
+      "Output attenuators",
+      "Curve of each button (ADSR attack, decay / release; ASR)",
+      "Muted outputs (ADSR, ASR)"
+    ]
+  },
+  {
+    "appId": 131,
+    "title": "Macro Control",
+    "description": "One fader sending up to 6 MIDI CCs, button mutes them to a set level",
+    "icon": "fader",
+    "color": "Violet",
+    "text": "Macro Control is a single-channel app where one fader drives up to six MIDI CCs at once, each on its own MIDI channel. The button mutes all of them to a level you choose.\n\n- **Fader** sends its position to every active CC over the full 0-127 range.\n- **Number of CCs** (1-6) sets how many are active. A CC whose **Channel** is **Off** is skipped.\n- Each CC has its own **Channel** and **CC Number**, so you can aim the fader at several parameters across devices, or at several channels of one device. Any controller number works, including Expression (11) and Breath Controller (2).\n- **Button** toggles mute. While muted, every active CC sits at **Mute Level** (0-127), for example 127 to hold a set of filters fully open. Press again to unmute: every CC returns to the fader's current position. The fader keeps tracking while muted.\n- **Color** sets the LED color. The LEDs go dark while muted.\n- CCs are only sent when their value changes. When the app starts, or after a parameter change, every active CC is sent once so the receiver matches the fader.\n- All MIDI is sent to USB and both DIN outputs; there is no output selector.\n- Scenes store the fader position and the mute state. After a scene load the fader must pick the value back up before it takes over.",
+    "channels": [
+      {
+        "jackTitle": "Not used",
+        "jackDescription": "This app has no CV output.",
+        "faderTitle": "Macro",
+        "faderDescription": "Sends its position (0-127) to every active CC.",
+        "ledTop": "Fader position in the chosen color; off while muted.",
+        "ledBottom": "Off.",
+        "fnTitle": "Mute",
+        "fnDescription": "Toggles mute. While muted, every active CC sits at Mute Level; unmuting returns to the fader position. The button LED goes off while muted."
+      }
+    ],
+    "params": [
+      "Number of CCs",
+      "CC 1 Channel",
+      "CC 1 Number",
+      "CC 2 Channel",
+      "CC 2 Number",
+      "CC 3 Channel",
+      "CC 3 Number",
+      "CC 4 Channel",
+      "CC 4 Number",
+      "CC 5 Channel",
+      "CC 5 Number",
+      "CC 6 Channel",
+      "CC 6 Number",
+      "Color",
+      "Mute Level"
+    ],
+    "storage": [
+      "Fader position",
+      "Muted"
+    ]
+  },
+  {
     "appId": 130,
     "title": "Macro Control Ranges",
     "description": "One fader sending up to 3 MIDI CCs with min/max ranges, button mutes to Min",
