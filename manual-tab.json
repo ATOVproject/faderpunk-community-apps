@@ -1662,5 +1662,75 @@
       "Fader position",
       "Muted"
     ]
+  },
+  {
+    "appId": 128,
+    "title": "ADSR 4ch",
+    "description": "ADSR envelope with a fader for each stage, plus inverted and ASR outputs",
+    "icon": "ad-env",
+    "color": "Yellow",
+    "text": "A gate-triggered ADSR envelope on four channels: Attack, Decay, Sustain and Release each get their own fader. Patch a trigger or gate into channel 1, take the ADSR from channel 3, an inverted ADSR from channel 2 and an ASR from channel 4.\n\n#### Outputs\n- **Channel 2** — the ADSR inverted (−5V range: 0V at rest, falling to −5V at the peak; the hardware has no −10V range). It follows the ADSR attenuator and mute\n- **Channel 3** — the ADSR envelope (0-10V)\n- **Channel 4** — an ASR envelope (0-10V): the same attack and release times and curves, but it rises to full scale and holds there for as long as the gate is high\n\n#### Gates\n- **Gate In** (channel 1 jack) — works like the AD envelope's input: a rising edge above about 1V starts the envelope, and a falling edge releases it\n- **Shift + button 1** starts a manual gate that lasts while the button is held. Let go of Shift and keep holding the button to adjust the main faders (for example Sustain) while it is on\n- **MIDI In** note-on/off also gates it (set MIDI In and MIDI Channel in the params). Overlapping sources hold the gate until all have let go\n- **Shift + fader 1** sets the minimum gate length, as in AD (10 ms to about 4 s). Short triggers are stretched to this length, so a trigger can run through the sustain stage before it releases\n\n#### Attenuators\n**Shift + fader** on the ADSR output's channel (channel 3) and on the ASR output's channel (channel 4) attenuates that output, as in AD. Each output has its own attenuator, and the MIDI output follows the ADSR attenuator.\n\n#### Shapes\nEvery button cycles a curve: **Linear** (yellow), **Log** (cyan, snappy: fast start, slow finish) and **Exp** (pink, swelling: slow start, fast finish). The ADSR has a separate curve for its attack (button 1), decay (button 2) and release (button 3), and the ASR output has its own (button 4), used for both its attack and its release. Every stage ramps from wherever the level currently is to its target, so changing curves, releasing the gate mid-stage, or retriggering during the release never makes the output jump.\n\n#### Times\nEach time fader sets the time for a full-scale sweep, from about 2 ms to 8 seconds (exponential response). A partial sweep (a retrigger from a half-way level, or a sustain level below the top) takes proportionally less. Decay moves toward the Sustain level, which can be changed live.\n\n#### Mute\n**Long press** the channel 3 button (the ADSR output's channel) to mute the ADSR output and its MIDI output, and the channel 4 button (the last channel) to mute the ASR output. A muted output's button goes dark. The envelopes keep running.\n\n#### LEDs\n- **Top** — each fader's value, in the colour of that channel's curve; the active stage glows white. Hold Shift to see the minimum gate length and the attenuators in red\n- **Bottom** — channel 1: gate (red); channel 2: inverted ADSR level (blue); channels 3 and 4: ADSR and ASR level",
+    "channels": [
+      {
+        "jackTitle": "Trigger / Gate In",
+        "jackDescription": "Gate input; a rising edge above about 1V starts the envelope, a short trigger is stretched to the minimum gate length.",
+        "faderTitle": "Attack",
+        "faderDescription": "Time to rise from 0 to full scale (ADSR and ASR).",
+        "faderPlusShiftTitle": "Minimum gate length",
+        "faderPlusShiftDescription": "Stretches short triggers to this length, 10 ms to about 4 s.",
+        "fnTitle": "ADSR attack curve",
+        "fnDescription": "Tap to cycle Linear, Log and Exp. Shift + hold starts the manual gate.",
+        "ledTop": "Attack time; white while the attack stage runs. Red minimum gate length with Shift held.",
+        "ledBottom": "Red when the gate is high."
+      },
+      {
+        "jackTitle": "Inverted ADSR Out",
+        "jackDescription": "The ADSR with its polarity flipped: 0V at rest, falling to -5V at the peak (-5V to +5V range; the hardware has no -10V range). Follows the ADSR attenuator and mute.",
+        "faderTitle": "Decay",
+        "faderDescription": "Time to fall from full scale to the Sustain level (ADSR only).",
+        "fnTitle": "ADSR decay curve",
+        "fnDescription": "Tap to cycle Linear, Log and Exp.",
+        "ledTop": "Decay time; white while the decay stage runs.",
+        "ledBottom": "Inverted ADSR level in blue."
+      },
+      {
+        "jackTitle": "ADSR Out",
+        "jackDescription": "ADSR envelope output, 0-10V.",
+        "faderTitle": "Sustain",
+        "faderDescription": "Level held while the gate stays high (ADSR only). Can be moved live.",
+        "fnTitle": "ADSR release curve / ADSR mute",
+        "fnDescription": "Tap to cycle Linear, Log and Exp. Long press to mute the ADSR output.",
+        "ledTop": "Sustain level; white while sustaining. Red attenuator level with Shift held.",
+        "ledBottom": "ADSR level in white.",
+        "faderPlusShiftTitle": "ADSR attenuator",
+        "faderPlusShiftDescription": "Scales the ADSR output level, 0 to full."
+      },
+      {
+        "jackTitle": "ASR Out",
+        "jackDescription": "ASR envelope output, 0-10V: the same attack and release as the ADSR.",
+        "faderTitle": "Release",
+        "faderDescription": "Time to fall from the current level to 0 after the gate ends (ADSR and ASR).",
+        "fnTitle": "ASR curve / ASR mute",
+        "fnDescription": "Tap to cycle Linear, Log and Exp for the ASR's attack and release. Long press to mute the ASR output.",
+        "ledTop": "Release time; white while the release stage runs. Red attenuator level with Shift held.",
+        "ledBottom": "ASR level in white.",
+        "faderPlusShiftTitle": "ASR attenuator",
+        "faderPlusShiftDescription": "Scales the ASR output level, 0 to full."
+      }
+    ],
+    "params": [
+      "MIDI In",
+      "MIDI Channel",
+      "MIDI Out",
+      "MIDI CC",
+      "MIDI NRPN"
+    ],
+    "storage": [
+      "Attack, Decay, Sustain and Release fader positions",
+      "Minimum gate length",
+      "Output attenuators",
+      "Curve of each button (ADSR attack, decay, release; ASR)",
+      "Muted outputs (ADSR, ASR)"
+    ]
   }
 ]
