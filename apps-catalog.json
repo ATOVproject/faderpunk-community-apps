@@ -166,5 +166,11 @@
     "module": "adsr_3ch",
     "author": "ATOVproject",
     "version": "0.1.0"
+  },
+  {
+    "appId": 131,
+    "module": "macro_control",
+    "author": "ATOVproject",
+    "version": "0.1.0"
   }
 ]

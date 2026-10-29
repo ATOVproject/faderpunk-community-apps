@@ -1581,5 +1581,46 @@
       "Curve of each button (ADSR attack, decay / release; ASR)",
       "Muted outputs (ADSR, ASR)"
     ]
+  },
+  {
+    "appId": 131,
+    "title": "Macro Control",
+    "description": "One fader sending up to 6 MIDI CCs, button mutes them to a set level",
+    "icon": "fader",
+    "color": "Violet",
+    "text": "Macro Control is a single-channel app where one fader drives up to six MIDI CCs at once, each on its own MIDI channel. The button mutes all of them to a level you choose.\n\n- **Fader** sends its position to every active CC over the full 0-127 range.\n- **Number of CCs** (1-6) sets how many are active. A CC whose **Channel** is **Off** is skipped.\n- Each CC has its own **Channel** and **CC Number**, so you can aim the fader at several parameters across devices, or at several channels of one device. Any controller number works, including Expression (11) and Breath Controller (2).\n- **Button** toggles mute. While muted, every active CC sits at **Mute Level** (0-127), for example 127 to hold a set of filters fully open. Press again to unmute: every CC returns to the fader's current position. The fader keeps tracking while muted.\n- **Color** sets the LED color. The LEDs go dark while muted.\n- CCs are only sent when their value changes. When the app starts, or after a parameter change, every active CC is sent once so the receiver matches the fader.\n- All MIDI is sent to USB and both DIN outputs; there is no output selector.\n- Scenes store the fader position and the mute state. After a scene load the fader must pick the value back up before it takes over.",
+    "channels": [
+      {
+        "jackTitle": "Not used",
+        "jackDescription": "This app has no CV output.",
+        "faderTitle": "Macro",
+        "faderDescription": "Sends its position (0-127) to every active CC.",
+        "ledTop": "Fader position in the chosen color; off while muted.",
+        "ledBottom": "Off.",
+        "fnTitle": "Mute",
+        "fnDescription": "Toggles mute. While muted, every active CC sits at Mute Level; unmuting returns to the fader position. The button LED goes off while muted."
+      }
+    ],
+    "params": [
+      "Number of CCs",
+      "CC 1 Channel",
+      "CC 1 Number",
+      "CC 2 Channel",
+      "CC 2 Number",
+      "CC 3 Channel",
+      "CC 3 Number",
+      "CC 4 Channel",
+      "CC 4 Number",
+      "CC 5 Channel",
+      "CC 5 Number",
+      "CC 6 Channel",
+      "CC 6 Number",
+      "Color",
+      "Mute Level"
+    ],
+    "storage": [
+      "Fader position",
+      "Muted"
+    ]
   }
 ]
