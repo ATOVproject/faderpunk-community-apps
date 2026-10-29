@@ -172,5 +172,11 @@
     "module": "macro_control",
     "author": "ATOVproject",
     "version": "0.1.0"
+  },
+  {
+    "appId": 130,
+    "module": "macro_control_ranges",
+    "author": "ATOVproject",
+    "version": "0.1.0"
   }
 ]

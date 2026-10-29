@@ -1622,5 +1622,45 @@
       "Fader position",
       "Muted"
     ]
+  },
+  {
+    "appId": 130,
+    "title": "Macro Control Ranges",
+    "description": "One fader sending up to 3 MIDI CCs with min/max ranges, button mutes to Min",
+    "icon": "fader",
+    "color": "Violet",
+    "text": "Macro Control Ranges is a single-channel app where one fader drives up to three MIDI CCs at once, each on its own MIDI channel and each with its own value range. The button mutes all of them to their minimum.\n\n- **Fader** moves every active CC together. Each CC is scaled between its **Min** and **Max** (0-127).\n- **Min above Max** reverses that CC: the fader at the bottom sends Min (the higher value) and at the top sends Max (the lower value). Use it to fade one parameter up while another fades down.\n- **Number of CCs** (1-3) sets how many are active. A CC whose **Channel** is **Off** is skipped.\n- Each CC has its own **Channel** and **CC Number**. Any controller number works, including Expression (11) and Breath Controller (2).\n- **Button** toggles mute. While muted, every active CC sits at its own **Min** (the value at the fader's bottom position). Press again to unmute: every CC returns to the fader's current position. The fader keeps tracking while muted.\n- **Color** sets the LED color. The LEDs go dark while muted.\n- CCs are only sent when their value changes. When the app starts, or after a parameter change, every active CC is sent once so the receiver matches the fader.\n- All MIDI is sent to USB and both DIN outputs; there is no output selector.\n- Scenes store the fader position and the mute state. After a scene load the fader must pick the value back up before it takes over.",
+    "channels": [
+      {
+        "jackTitle": "Not used",
+        "jackDescription": "This app has no CV output.",
+        "faderTitle": "Macro",
+        "faderDescription": "Sends every active CC, each scaled between its Min and Max. A Min above Max reverses that CC.",
+        "fnTitle": "Mute",
+        "fnDescription": "Toggles mute. While muted, every active CC sits at its Min; unmuting returns to the fader position. The button LED goes off while muted.",
+        "ledTop": "Fader position in the chosen color; off while muted.",
+        "ledBottom": "Off."
+      }
+    ],
+    "params": [
+      "Number of CCs",
+      "CC 1 Channel",
+      "CC 1 Number",
+      "CC 1 Min",
+      "CC 1 Max",
+      "CC 2 Channel",
+      "CC 2 Number",
+      "CC 2 Min",
+      "CC 2 Max",
+      "CC 3 Channel",
+      "CC 3 Number",
+      "CC 3 Min",
+      "CC 3 Max",
+      "Color"
+    ],
+    "storage": [
+      "Fader position",
+      "Muted"
+    ]
   }
 ]
