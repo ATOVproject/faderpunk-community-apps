@@ -146,7 +146,10 @@ function CategorizedGrid({ newTab }: { newTab?: boolean }) {
               {apps.map((app) => (
                 <li key={app.id}>
                   <a
-                    href={app.href}
+                    // In-page anchors must stay bare "#app-N": the iframe's
+                    // resize script only forwards clicks on a[href^="#"] to
+                    // the embedder, which does the scrolling.
+                    href={newTab ? app.href : `#app-${app.id}`}
                     {...(newTab
                       ? { target: "_blank", rel: "noopener noreferrer" }
                       : {})}
