@@ -20,14 +20,15 @@ import path from "node:path";
 import { renderToStaticMarkup } from "react-dom/server";
 
 import {
-  AppGrid,
   EmbedPage,
   type AppGridItem,
 } from "../.faderpunk/configurator/src/apps-embed/AppGrid";
+import { Icon } from "../.faderpunk/configurator/src/components/Icon";
 import {
   ManualApp,
   type ManualAppData,
 } from "../.faderpunk/configurator/src/components/manual/ManualApp";
+import { COLORS_CLASSES } from "../.faderpunk/configurator/src/utils/class-helpers";
 
 interface CatalogEntry {
   appId: number;
@@ -54,6 +55,19 @@ const manuals: ManualAppData[] = JSON.parse(
 );
 const manualById = new Map(manuals.map((m) => [m.appId, m]));
 
+// Display order of the categories is the schema's enum order, so adding or
+// reordering one is a single edit there. Apps without a category fall into a
+// trailing "Other" group rather than disappearing.
+const OTHER = "Other";
+const categoryOrder: string[] = [
+  ...JSON.parse(
+    fs.readFileSync(path.join(repoRoot, "manual-tab.schema.json"), "utf8"),
+  ).items.properties.category.enum,
+  OTHER,
+];
+const categoryOf = (appId: number) =>
+  (manualById.get(appId) as { category?: string }).category ?? OTHER;
+
 fs.mkdirSync(outDir, { recursive: true });
 
 // Copy each app's built package in, so the catalogue can link straight to
@@ -78,9 +92,88 @@ if (downloadsDir && fs.existsSync(downloadsDir)) {
 
 const entries = catalog
   .filter((entry) => manualById.has(entry.appId))
-  .sort((a, b) =>
-    manualById.get(a.appId)!.title.localeCompare(manualById.get(b.appId)!.title),
+  .sort(
+    (a, b) =>
+      categoryOrder.indexOf(categoryOf(a.appId)) -
+        categoryOrder.indexOf(categoryOf(b.appId)) ||
+      manualById.get(a.appId)!.title.localeCompare(manualById.get(b.appId)!.title),
   );
+
+for (const entry of entries) {
+  if (!categoryOrder.includes(categoryOf(entry.appId))) {
+    throw new Error(
+      `${entry.module}: unknown category "${categoryOf(entry.appId)}" — add it to the enum in manual-tab.schema.json`,
+    );
+  }
+}
+const uncategorised = entries.filter((e) => categoryOf(e.appId) === OTHER);
+if (uncategorised.length) {
+  console.warn(
+    `warning: no category for: ${uncategorised.map((e) => e.module).join(", ")}`,
+  );
+}
+
+const gridApps: (AppGridItem & { author: string })[] = entries.map((entry) => {
+  const manual = manualById.get(entry.appId)!;
+  return {
+    id: entry.appId,
+    author: entry.author,
+    name: manual.title,
+    description: manual.description,
+    color: manual.color,
+    icon: manual.icon,
+    href: `${base}#app-${entry.appId}`,
+  };
+});
+
+// Icon cards grouped under a heading per category, empty categories
+// omitted. Same card as faderpunk's AppGrid, but that component is a fixed
+// one/two-column list, so the layout is ours: columns follow the width of
+// the *container* (an iframe is as wide as its embedder gives it, which
+// says nothing about the viewport), up to three.
+function CategorizedGrid({ newTab }: { newTab?: boolean }) {
+  return (
+    <>
+      {categoryOrder.map((category) => {
+        const apps = gridApps.filter((a) => categoryOf(a.id) === category);
+        if (!apps.length) return null;
+        return (
+          <section key={category} className="@container mb-10">
+            <h2 className="text-yellow-fp mb-4 text-xl font-bold uppercase">
+              {category}
+            </h2>
+            <ul className="grid grid-cols-1 gap-x-8 gap-y-4 @xl:grid-cols-2 @4xl:grid-cols-3">
+              {apps.map((app) => (
+                <li key={app.id}>
+                  <a
+                    href={app.href}
+                    {...(newTab
+                      ? { target: "_blank", rel: "noopener noreferrer" }
+                      : {})}
+                    className="flex items-center gap-4"
+                  >
+                    <div
+                      className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-sm p-2 ${
+                        COLORS_CLASSES[app.color as keyof typeof COLORS_CLASSES]?.bg ?? ""
+                      }`}
+                    >
+                      <Icon className="h-8 w-8 text-black" name={app.icon} />
+                    </div>
+                    <div>
+                      <h3 className="text-yellow-fp font-bold uppercase">{app.name}</h3>
+                      <p className="text-sm text-white/80">{app.description}</p>
+                      <p className="text-xs text-white/50">by {app.author}</p>
+                    </div>
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </section>
+        );
+      })}
+    </>
+  );
+}
 
 const missing = catalog.filter((entry) => !manualById.has(entry.appId));
 if (missing.length) {
@@ -104,15 +197,7 @@ const Page = () => (
     <h2 className="text-yellow-fp mt-8 mb-4 text-xl font-bold uppercase">
       Contents
     </h2>
-    <ul className="my-3 ml-3 list-inside list-disc">
-      {entries.map((entry) => (
-        <li key={entry.appId}>
-          <a className="font-semibold underline" href={`#app-${entry.appId}`}>
-            {manualById.get(entry.appId)!.title}
-          </a>
-        </li>
-      ))}
-    </ul>
+    <CategorizedGrid />
     {entries.map((entry) => {
       const manual = manualById.get(entry.appId)!;
       const download = downloadByApp.get(entry.appId);
@@ -221,22 +306,10 @@ console.log(
 );
 
 // A compact icon grid of the same apps, for faderpunk.io to iframe at
-// /embed/. It reuses the grid component faderpunk.io/apps renders, so the
-// two look identical, and links each card to its entry on the catalogue
-// page. Unlike that page there's no resize script: the embedder gives
+// /embed/. It uses the same cards as faderpunk.io/apps, grouped by category
+// like the catalogue page, and links each card to its entry on the
+// catalogue page. Unlike that page there's no resize script: the embedder gives
 // this one a fixed height.
-const gridApps: AppGridItem[] = entries.map((entry) => {
-  const manual = manualById.get(entry.appId)!;
-  return {
-    id: entry.appId,
-    name: manual.title,
-    description: manual.description,
-    color: manual.color,
-    icon: manual.icon,
-    href: `${base}#app-${entry.appId}`,
-  };
-});
-
 const embedHtml = `<!doctype html>
 <html lang="en" class="dark">
 <head>
@@ -248,7 +321,7 @@ const embedHtml = `<!doctype html>
 <body>
 ${renderToStaticMarkup(
   <EmbedPage>
-    <AppGrid apps={gridApps} />
+    <CategorizedGrid newTab />
   </EmbedPage>,
 )}
 </body>

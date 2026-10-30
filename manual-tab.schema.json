@@ -25,6 +25,14 @@
           "Salmon", "LightBlue", "Black", "Custom"
         ]
       },
+      "category": {
+        "type": "string",
+        "enum": [
+          "Modulation", "Rhythm Sequencers", "Melody Sequencers",
+          "MIDI Control", "Delay & Loop"
+        ],
+        "description": "Group the app is listed under on the catalogue page and in the embed. The order here is the display order. An app without one is listed under Other; adding a category means editing this enum."
+      },
       "params": { "type": "array", "items": { "type": "string" } },
       "storage": { "type": "array", "items": { "type": "string" } },
       "text": {

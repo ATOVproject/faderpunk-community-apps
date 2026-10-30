@@ -50,7 +50,10 @@ Exactly three things, added in one PR, and nothing else:
    configurator (`ManualAppData` in `configurator/src/components/manual/
    ManualApp.tsx`), stored here as plain JSON data rather than `.tsx`
    source — this file only ever holds descriptive text, never executable
-   code, which matters once a desktop app consumes it directly.
+   code, which matters once a desktop app consumes it directly. Set its
+   `category` to one of the values in the enum in `manual-tab.schema.json`
+   — that is the group the app is listed under on the catalogue page. An
+   app without one is listed under "Other" until a maintainer files it.
 3. One appended entry in `apps-catalog.json`, matching
    `apps-catalog.schema.json`. Its `appId` must match the `appId` used in
    your `manual-tab.json` entry — that's how the two are linked. Its
