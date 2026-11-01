@@ -184,5 +184,11 @@
     "module": "adsr_4ch",
     "author": "ATOVproject",
     "version": "0.1.0"
+  },
+  {
+    "appId": 132,
+    "module": "chord_looper",
+    "author": "ATOVproject",
+    "version": "0.1.0"
   }
 ]
