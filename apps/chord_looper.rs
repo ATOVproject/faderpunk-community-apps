@@ -139,13 +139,35 @@ impl AppStorage for Storage {}
 // Chord progressions (standard, public-domain harmonic patterns)
 // ---------------------------------------------------------------------------
 
-type Quality = &'static [u8];
+/// Chord qualities are plain data (no `&'static` slices): an installed FPApp
+/// cannot contain absolute pointers.
+#[derive(Clone, Copy)]
+enum Quality {
+    Maj,
+    Min,
+    Dom7,
+    Maj7,
+    Min7,
+}
 
-const MAJ: Quality = &[0, 4, 7];
-const MIN: Quality = &[0, 3, 7];
-const DOM7: Quality = &[0, 4, 7, 10];
-const MAJ7: Quality = &[0, 4, 7, 11];
-const MIN7: Quality = &[0, 3, 7, 10];
+const MAJ: Quality = Quality::Maj;
+const MIN: Quality = Quality::Min;
+const DOM7: Quality = Quality::Dom7;
+const MAJ7: Quality = Quality::Maj7;
+const MIN7: Quality = Quality::Min7;
+
+impl Quality {
+    /// Semitone intervals above the root, and how many of them are used
+    fn intervals(self) -> ([u8; 4], usize) {
+        match self {
+            Quality::Maj => ([0, 4, 7, 0], 3),
+            Quality::Min => ([0, 3, 7, 0], 3),
+            Quality::Dom7 => ([0, 4, 7, 10], 4),
+            Quality::Maj7 => ([0, 4, 7, 11], 4),
+            Quality::Min7 => ([0, 3, 7, 10], 4),
+        }
+    }
+}
 
 /// Root as semitones above the tonic, plus chord quality.
 #[derive(Clone, Copy)]
@@ -387,7 +409,8 @@ pub async fn run(
 
         let mut notes = [0u8; 4];
         let mut count = 0;
-        for interval in chord.1.iter() {
+        let (intervals, interval_count) = chord.1.intervals();
+        for interval in intervals.iter().take(interval_count) {
             let semitones = tonic + chord.0 as i32 + *interval as i32;
             let counts = ((semitones * 4095 + 60) / 120) as u16;
             let pitch = quantizer.get_quantized_note(counts).await;
@@ -584,5 +607,12 @@ pub async fn run(
         join(scene_loop, shift_loop).await;
     };
 
-    join5(clock_loop, button_loop, gate_loop, fader_loop, scene_and_shift).await;
+    join5(
+        clock_loop,
+        button_loop,
+        gate_loop,
+        fader_loop,
+        scene_and_shift,
+    )
+    .await;
 }
