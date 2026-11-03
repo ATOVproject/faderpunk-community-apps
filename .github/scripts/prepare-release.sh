@@ -5,7 +5,9 @@
 #
 #   prepare-release.sh plan  [REF]       JSON plan on stdout (default REF: HEAD)
 #   prepare-release.sh apply PLAN.json   rewrite the versions in apps-catalog.json
-#   prepare-release.sh body  PLAN.json   markdown for the PR body / commit message
+#   prepare-release.sh body  PLAN.json [pr|release]
+#                                        markdown for the PR body / commit message
+#                                        (pr, default) or for release notes (release)
 #   prepare-release.sh fresh PREPARED_ON MERGED_ONTO
 #                                        exit 1 if anything that ships changed in between
 #
@@ -17,6 +19,14 @@
 # app's manual commits are still listed as context for an app that is being
 # bumped for its code. The comparison is by content, so a change that was
 # reverted in between is not a change.
+#
+# A new app is unreleased too: one that isn't in the catalog at the last
+# published release, i.e. the nearest `release-*` tag (release.yml tags every
+# release it publishes; a release that failed has no tag, so its apps are still
+# new). It ships for the first time at its current version, with no bump (level
+# "new"). If its code changed after its version was set, it is bumped like any
+# other app instead: the catalogue site has served that version since the merge.
+# With no `release-*` tag at all, nothing has been published and every app is new.
 #
 # How far to bump, from the conventional-commit subjects of the commits that
 # touched apps/<module>.rs (history is squash-merged, so first-parent subjects
@@ -54,6 +64,12 @@ release_commit() {
   printf '%s' "$found"
 }
 
+# The nearest published release reachable from $1 (release.yml tags each one
+# `release-YYYY-MM-DD[-N]`), or nothing if none has been published yet.
+last_release() {
+  git describe --tags --abbrev=0 --match 'release-*' "$1" 2>/dev/null || true
+}
+
 # next_version <current> <level>
 next_version() {
   local major minor patch
@@ -86,9 +102,10 @@ level_from_subjects() {
 }
 
 cmd_plan() {
-  local ref="${1:-HEAD}" lines module app_id current rel title level to
+  local ref="${1:-HEAD}" lines module app_id current rel released title level to
   local app_commits manual_commits c p changes
   git rev-parse --verify --quiet "$ref^{commit}" >/dev/null || die "unknown ref: $ref"
+  released="$(last_release "$ref")"
   lines="$(mktemp)"
   trap 'rm -f "$lines"' RETURN
 
@@ -102,11 +119,23 @@ cmd_plan() {
     fi
 
     # Only the app's code releases it. A manual-only edit is not a release.
-    git diff --quiet "$rel" "$ref" -- "apps/$module.rs" && continue
+    if ! git diff --quiet "$rel" "$ref" -- "apps/$module.rs"; then
+      app_commits="$(git log --first-parent --format='%h%x09%s' "$rel..$ref" -- "apps/$module.rs")"
+      level="$(level_from_subjects <<<"$app_commits")"
+      # Semver: while an app is 0.x a breaking change is only a minor bump.
+      if [ "$level" = "major" ] && [ "${current%%.*}" = "0" ]; then level=minor; fi
+      to="$(next_version "$current" "$level")"
+    elif [ -n "$released" ] && [ -n "$(version_at "$released" "$module")" ]; then
+      continue # unchanged, and already in the last release
+    else
+      # New since the last release: it ships for the first time as it is.
+      app_commits="$(git log --first-parent --format='%h%x09%s' "${released:+$released..}$ref" -- "apps/$module.rs")"
+      level=new
+      to="$current"
+    fi
 
-    app_commits="$(git log --first-parent --format='%h%x09%s' "$rel..$ref" -- "apps/$module.rs")"
     # Context only: which manual edits landed since, so the table tells the
-    # whole story for an app that is being bumped anyway.
+    # whole story for an app that is being released anyway.
     manual_commits=""
     if [ "$(manual_at "$rel" "$app_id")" != "$(manual_at "$ref" "$app_id")" ]; then
       while read -r c; do
@@ -118,10 +147,6 @@ cmd_plan() {
       done < <(git log --first-parent --format=%H "$rel..$ref" -- manual-tab.json)
     fi
 
-    level="$(level_from_subjects <<<"$app_commits")"
-    # Semver: while an app is 0.x a breaking change is only a minor bump.
-    if [ "$level" = "major" ] && [ "${current%%.*}" = "0" ]; then level=minor; fi
-    to="$(next_version "$current" "$level")"
     title="$(git show "$ref:manual-tab.json" | jq -r --argjson id "$app_id" '[.[] | select(.appId == $id)][0].title // empty')"
 
     changes="$(
@@ -150,14 +175,34 @@ cmd_apply() {
   mv "$tmp" apps-catalog.json
 }
 
+# "a", "a and b", "a, b and c"
+join_and() {
+  local out="${1-}"
+  shift || return 0
+  while [ $# -gt 1 ]; do out+=", $1"; shift; done
+  [ $# -eq 0 ] || out+=" and $1"
+  printf '%s' "$out"
+}
+
 cmd_body() {
-  local plan="${1:?usage: prepare-release.sh body PLAN.json}" n
-  n="$(jq length "$plan")"
-  echo "Merging this PR bumps the version of $n app(s) and publishes a release with a ZIP of every community app."
+  local plan="${1:?usage: prepare-release.sh body PLAN.json [pr|release]}" mode="${2:-pr}" bumps new
+  local parts=()
+  bumps="$(jq '[.[] | select(.level != "new")] | length' "$plan")"
+  new="$(jq '[.[] | select(.level == "new")] | length' "$plan")"
+  [ "$bumps" -eq 0 ] || parts+=("bumps the version of $bumps app(s)")
+  [ "$new" -eq 0 ] || parts+=("ships $new new app(s) for the first time")
+  case "$mode" in
+    pr)
+      parts+=("publishes a release with a ZIP of every community app")
+      echo "Merging this PR $(join_and "${parts[@]}")."
+      ;;
+    release) echo "This release $(join_and "${parts[@]}"). Its ZIP holds every community app." ;;
+    *) die "unknown body mode: $mode (expected pr or release)" ;;
+  esac
   echo
   echo "| App | Version | Bump | Changes since the last release |"
   echo "|---|---|---|---|"
-  jq -r '.[] | "| \(.title) (`\(.module)`) | \(.from) → \(.to) | \(.level) | \(.changes | map(.subject | gsub("\\|"; "\\|")) | join("<br>")) |"' "$plan"
+  jq -r '.[] | "| \(.title) (`\(.module)`) | \(if .level == "new" then .to else "\(.from) → \(.to)" end) | \(.level) | \(.changes | map(.subject | gsub("\\|"; "\\|")) | join("<br>")) |"' "$plan"
 }
 
 # A release PR is a snapshot: its version table was worked out on PREPARED_ON.
