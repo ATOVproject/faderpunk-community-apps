@@ -311,8 +311,35 @@ console.log(
 // A compact icon grid of the same apps, for faderpunk.io to iframe at
 // /embed/. It uses the same cards as faderpunk.io/apps, grouped by category
 // like the catalogue page, and links each card to its entry on the
-// catalogue page. Unlike that page there's no resize script: the embedder gives
-// this one a fixed height.
+// catalogue page. It reports its height to the embedder (see
+// EMBED_RESIZE_SCRIPT); an embedder that doesn't listen just sets a fixed height.
+// Lets a site that embeds /embed/ size the iframe to its content instead of
+// guessing a height. Measures <body>, not documentElement.scrollHeight: the
+// latter never reports less than the iframe's own height, so the frame
+// could grow but never shrink (e.g. when widened to three columns). Same
+// request/report handshake as the catalogue page's script, under its own
+// message type. Standalone viewers ignore it.
+const EMBED_RESIZE_SCRIPT = `
+(function () {
+  if (window.parent === window) return;
+  var last = 0;
+  function post() {
+    last = Math.ceil(document.body.getBoundingClientRect().height);
+    window.parent.postMessage({ type: "fp-embed-height", height: last }, "*");
+  }
+  function postIfChanged() {
+    if (Math.ceil(document.body.getBoundingClientRect().height) !== last) post();
+  }
+  window.addEventListener("message", function (event) {
+    if (event.data && event.data.type === "fp-embed-request-height") post();
+  });
+  if (window.ResizeObserver) new ResizeObserver(postIfChanged).observe(document.body);
+  window.addEventListener("load", post);
+  [100, 500, 1500].forEach(function (d) { setTimeout(postIfChanged, d); });
+  post();
+})();
+`.trim();
+
 const embedHtml = `<!doctype html>
 <html lang="en" class="dark">
 <head>
@@ -321,12 +348,16 @@ const embedHtml = `<!doctype html>
 <title>Faderpunk Community Apps</title>
 <link rel="stylesheet" href="${base}styles.css">
 </head>
-<body>
+<!-- Inline, because styles.css's own body rule (black) is unlayered and beats
+     the bg-gray-500 utility. Matching EmbedPage's grey means an iframe taller
+     than the cards shows no black strip below them. -->
+<body style="background:var(--color-gray-500)">
 ${renderToStaticMarkup(
   <EmbedPage>
     <CategorizedGrid newTab />
   </EmbedPage>,
 )}
+<script>${EMBED_RESIZE_SCRIPT}</script>
 </body>
 </html>
 `;
