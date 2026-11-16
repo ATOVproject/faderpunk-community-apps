@@ -1763,5 +1763,42 @@
       "Curve of each button (ADSR attack, decay, release; ASR)",
       "Muted outputs (ADSR, ASR)"
     ]
+  },
+  {
+    "appId": 132,
+    "title": "Chord Looper",
+    "description": "Background chord progression: play the current chord with the button and loop the rhythm",
+    "icon": "note",
+    "color": "Pink",
+    "category": "Melody Sequencers",
+    "text": "A silent chord progression runs in the background, one chord per bar, locked to the clock. Press the button to play whichever chord is current; your presses are recorded on a 4 or 8 bar loop that then plays back by itself. Output is MIDI only and runs through the global quantizer.\n\n#### Progressions\nThe fader picks one of eight classic progressions (the bottom LED colour shows which):\n1. Pop: I V vi IV\n2. 50s doo-wop: I vi IV V\n3. Jazz ii-V-I\n4. Rhythm-changes turnaround\n5. Minor: i VI III VII\n6. Andalusian: i VII VI V\n7. Canon (Pachelbel): I V vi iii IV I IV V\n8. Eight-bar blues\n\nIn 4-bar mode the first four chords of each progression play. The recorded loop stores only when you pressed and for how long, so changing the progression re-harmonises the same rhythm.\n\n#### Playing and recording\n- **Button** plays the current chord while held. The press and its length are recorded on a 1/16 note grid and loop from then on. A new press on the same step overwrites it.\n- **Shift + button** erases the recorded sequence.\n- Recording needs a running clock. Without one the button still plays chords (bar 1) but nothing is recorded.\n\n#### Gate input\nWith **Gate input** on, a gate on the jack plays the current chord like the button (rising edge starts it, falling edge releases it). **Record gate input** decides whether gate hits are recorded into the loop. Turn **Gate input** off to leave the jack unused.\n\n#### Quantizer\nChord tones are written relative to the tonic and snapped to the global scale, so choose a scale that suits the progression (for example a minor scale for the minor progressions). With the global key set to Off or **Bypass quantizer** on, chords play exactly as written. The **Base note** sets the lowest octave of the chords.",
+    "channels": [
+      {
+        "jackTitle": "Gate in",
+        "jackDescription": "Optional gate that plays the current chord (Gate input param).",
+        "faderTitle": "Progression",
+        "faderDescription": "Selects one of eight chord progressions.",
+        "fnTitle": "Play / record",
+        "fnDescription": "Plays the current chord; presses are recorded and looped.",
+        "fnPlusShiftTitle": "Erase",
+        "fnPlusShiftDescription": "Shift + button erases the recorded sequence.",
+        "ledTop": "Beat indicator (brighter on bar 1)",
+        "ledBottom": "Progression colour"
+      }
+    ],
+    "params": [
+      "MIDI Channel",
+      "Base note",
+      "Length",
+      "Gate input",
+      "Record gate input",
+      "Color",
+      "MIDI Out",
+      "Bypass quantizer"
+    ],
+    "storage": [
+      "Progression",
+      "Recorded sequence"
+    ]
   }
 ]
