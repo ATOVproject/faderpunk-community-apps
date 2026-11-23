@@ -9,6 +9,10 @@ name: Prepare release
 # Merging that PR makes release.yml publish a GitHub release with a ZIP of
 # every community app, and the Pages site redeploys with the new versions.
 #
+# New apps (not in the last published release) ride along in that PR and its
+# release notes. If new apps are all there is, there is no version to bump and
+# so no PR: the summary says to run release.yml by hand instead.
+#
 # "Dry run" only lists the bumps in the job summary and pushes nothing.
 #
 # PRs opened with the default GITHUB_TOKEN don't trigger other workflows, so
@@ -44,7 +48,8 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.RELEASE_TOKEN || github.token }}
     steps:
-      # Full history: the plan walks back to the commit that set each version.
+      # Full history and tags: the plan walks back to the commit that set each
+      # version, and finds the last release by its `release-*` tag.
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
@@ -54,20 +59,25 @@ jobs:
         id: plan
         run: |
           .github/scripts/prepare-release.sh plan > plan.json
-          count=$(jq length plan.json)
-          echo "count=$count" >> "$GITHUB_OUTPUT"
+          bumps=$(jq '[.[] | select(.level != "new")] | length' plan.json)
+          new=$(jq '[.[] | select(.level == "new")] | length' plan.json)
+          echo "bumps=$bumps" >> "$GITHUB_OUTPUT"
           {
             echo "## Release plan"
             echo
-            if [ "$count" = "0" ]; then
-              echo "Nothing to release: no app has changed since its last version bump."
-            else
+            if [ "$bumps" != "0" ]; then
               .github/scripts/prepare-release.sh body plan.json
+            elif [ "$new" != "0" ]; then
+              .github/scripts/prepare-release.sh body plan.json release
+              echo
+              echo "Only new apps: there is no version to bump, so no release PR. To publish them, run **Actions → Release → Run workflow** on \`main\` (tick *Dry run* first)."
+            else
+              echo "Nothing to release: no app has changed since its last version bump, and every app is in the last release."
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Commit the bumps to the release branch
-        if: steps.plan.outputs.count != '0' && !inputs.dry_run
+        if: steps.plan.outputs.bumps != '0' && !inputs.dry_run
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -84,7 +94,7 @@ jobs:
           git push --force origin release
 
       - name: Open or update the release PR
-        if: steps.plan.outputs.count != '0' && !inputs.dry_run
+        if: steps.plan.outputs.bumps != '0' && !inputs.dry_run
         run: |
           {
             .github/scripts/prepare-release.sh body plan.json

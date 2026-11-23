@@ -4,6 +4,12 @@ name: Release
 # prepare-release.yml from the `release` branch) is merged: every community app
 # is built as an installable .fpapp and zipped into one download.
 #
+# Also run by hand (Actions > Release > Run workflow, on main) when the only
+# thing to release is new apps: apps added since the last release that need no
+# version bump, so Prepare release has no PR to open. That run builds the commit
+# it runs on, and refuses if any app has a bump pending -- those go through
+# Prepare release and its PR. "Dry run" builds and zips but publishes nothing.
+#
 # Built against faderpunk's current `main` -- the same ref the PR build check
 # and the Pages site use -- and the firmware commit is recorded in the release
 # notes, because an .fpapp is pinned to the firmware ABI it was built against.
@@ -15,6 +21,12 @@ on:
   pull_request:
     types: [closed]
     branches: [main]
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry run: plan, build and zip, but publish nothing"
+        type: boolean
+        default: false
 
 permissions:
   contents: write # create the tag and the release
@@ -27,22 +39,28 @@ jobs:
   release:
     # Only the merged release PR, and only from this repo's own `release`
     # branch: a fork branch that happens to be called `release` must not
-    # qualify (its token would be read-only anyway).
+    # qualify (its token would be read-only anyway). Or a run by hand on main.
     if: >
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'pull_request' &&
       github.event.pull_request.merged == true &&
       github.head_ref == 'release' &&
-      github.event.pull_request.head.repo.full_name == github.repository
+      github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: ubuntu-latest
     timeout-minutes: 60
     env:
       GH_TOKEN: ${{ github.token }}
+      # What gets built and tagged: the merged release PR, or main as it was
+      # when the run by hand started.
+      TARGET_SHA: ${{ github.event.pull_request.merge_commit_sha || github.sha }}
     steps:
-      # Full history: the staleness check below compares the commit the
-      # release was prepared on with the one it was merged onto.
-      - name: Checkout the merged release
+      # Full history and tags: the staleness check below compares the commit
+      # the release was prepared on with the one it was merged onto, and a run
+      # by hand plans against the last `release-*` tag.
+      - name: Checkout the release
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.merge_commit_sha }}
+          ref: ${{ env.TARGET_SHA }}
           path: faderpunk-community-apps
           fetch-depth: 0
 
@@ -51,6 +69,7 @@ jobs:
       # its versions don't describe. Nothing is published yet, so
       # failing here is safe: run Prepare release again.
       - name: Refuse a stale release
+        if: github.event_name == 'pull_request'
         working-directory: faderpunk-community-apps
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
@@ -60,6 +79,26 @@ jobs:
           prepared_on=$(git rev-parse FETCH_HEAD^)
           merged_onto=$(git rev-parse "$MERGE_SHA^")
           .github/scripts/prepare-release.sh fresh "$prepared_on" "$merged_onto"
+
+      # A run by hand only ever ships new apps as they are. Anything with a
+      # version bump pending goes through Prepare release's PR instead, so the
+      # versions in the ZIP always describe its code.
+      - name: Refuse anything but new apps
+        if: github.event_name == 'workflow_dispatch'
+        working-directory: faderpunk-community-apps
+        run: |
+          .github/scripts/prepare-release.sh plan > "$RUNNER_TEMP/plan.json"
+          bumps=$(jq '[.[] | select(.level != "new")] | length' "$RUNNER_TEMP/plan.json")
+          new=$(jq '[.[] | select(.level == "new")] | length' "$RUNNER_TEMP/plan.json")
+          if [ "$bumps" != "0" ]; then
+            echo "::error::$bumps app(s) changed since their last version bump: run Prepare release instead."
+            exit 1
+          fi
+          if [ "$new" = "0" ]; then
+            echo "::error::Nothing to release: every app is in the last release."
+            exit 1
+          fi
+          .github/scripts/prepare-release.sh body "$RUNNER_TEMP/plan.json" release > "$RUNNER_TEMP/release-body.md"
 
       - name: Checkout faderpunk (build against current main)
         uses: actions/checkout@v4
@@ -124,27 +163,53 @@ jobs:
 
       # The PR body is the table of bumps written by prepare-release.sh. It is
       # passed through the environment and a file, never interpolated into the
-      # script, so its text can't be run as shell.
-      - name: Publish the release
+      # script, so its text can't be run as shell. A run by hand has no PR: its
+      # table comes from the plan, written by the "new apps" step above.
+      - name: Write the release notes
         working-directory: faderpunk-community-apps
         env:
           TAG: ${{ steps.tag.outputs.tag }}
           PR_BODY: ${{ github.event.pull_request.body }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
-          MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
         run: |
           firmware=$(git -C ../faderpunk rev-parse HEAD)
           {
-            printf '%s\n' "$PR_BODY" | sed '/^---$/,$d'
+            if [ -n "$PR_NUMBER" ]; then
+              printf '%s\n' "$PR_BODY" | sed '/^---$/,$d'
+            else
+              cat "$RUNNER_TEMP/release-body.md"
+            fi
             echo
             echo "Every app is in \`faderpunk-community-apps-$TAG.zip\`: extract it and install the individual \`.fpapp\` files from **Apps > Installed Apps** in the Configurator."
             echo
-            echo "Built against faderpunk [\`${firmware:0:7}\`](https://github.com/ATOVproject/faderpunk/commit/$firmware). Release PR: #$PR_NUMBER."
+            if [ -n "$PR_NUMBER" ]; then
+              echo "Built against faderpunk [\`${firmware:0:7}\`](https://github.com/ATOVproject/faderpunk/commit/$firmware). Release PR: #$PR_NUMBER."
+            else
+              echo "Built against faderpunk [\`${firmware:0:7}\`](https://github.com/ATOVproject/faderpunk/commit/$firmware). New apps only, released by hand from \`${TARGET_SHA:0:7}\`."
+            fi
           } > "$RUNNER_TEMP/release-notes.md"
+
+      - name: Publish the release
+        if: ${{ !inputs.dry_run }}
+        working-directory: faderpunk-community-apps
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
           gh release create "$TAG" \
             --repo "$GITHUB_REPOSITORY" \
-            --target "$MERGE_SHA" \
+            --target "$TARGET_SHA" \
             --title "Community apps ${TAG#release-}" \
             --notes-file "$RUNNER_TEMP/release-notes.md" \
             "build/faderpunk-community-apps-$TAG.zip"
           echo "Released [$TAG]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/tag/$TAG)." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Show the dry run
+        if: ${{ inputs.dry_run }}
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          {
+            echo "Dry run: every app built and zipped as \`$TAG\`, nothing published. The release notes would be:"
+            echo
+            cat "$RUNNER_TEMP/release-notes.md"
+          } >> "$GITHUB_STEP_SUMMARY"
