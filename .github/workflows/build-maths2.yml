@@ -1,0 +1,77 @@
+name: Build MATHS 2 FPApp
+
+on:
+  workflow_dispatch:
+    inputs:
+      app_module:
+        description: "App module to build"
+        required: true
+        default: "maths2"
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out selected fork branch
+        uses: actions/checkout@v4
+
+      - name: Install Rust nightly (native app build)
+        uses: dtolnay/rust-toolchain@nightly
+        with:
+          targets: thumbv8m.main-none-eabihf
+          components: rust-src
+
+      - name: Install Rust stable (FPApp builder)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: thumbv8m.main-none-eabihf
+
+      - name: Install ARM binutils
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y binutils-arm-none-eabi jq
+
+      - name: Prepare one-app build workspace
+        env:
+          MODULE: ${{ inputs.app_module }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$MODULE" =~ ^[a-z][a-z0-9_]*$ ]]; then
+            echo "Invalid app module: $MODULE" >&2
+            exit 1
+          fi
+
+          test -f "apps/$MODULE.rs" || { echo "Missing apps/$MODULE.rs" >&2; exit 1; }
+
+          mkdir -p "$RUNNER_TEMP/app/apps"
+          cp "apps/$MODULE.rs" "$RUNNER_TEMP/app/apps/$MODULE.rs"
+
+          jq --arg module "$MODULE" '[.[] | select(.module == $module)]' apps-catalog.json > "$RUNNER_TEMP/app/apps-catalog.json"
+          count="$(jq 'length' "$RUNNER_TEMP/app/apps-catalog.json")"
+          test "$count" -eq 1 || { echo "Expected exactly one catalog entry for $MODULE; found $count" >&2; exit 1; }
+
+          app_id="$(jq -r '.[0].appId' "$RUNNER_TEMP/app/apps-catalog.json")"
+          jq --argjson id "$app_id" '[.[] | select(.appId == $id)]' manual-tab.json > "$RUNNER_TEMP/app/manual-tab.json"
+          manual_count="$(jq 'length' "$RUNNER_TEMP/app/manual-tab.json")"
+          test "$manual_count" -eq 1 || { echo "Expected exactly one manual entry for appId $app_id; found $manual_count" >&2; exit 1; }
+
+      - name: Clone Faderpunk builder
+        run: git clone --depth 1 https://github.com/ATOVproject/faderpunk.git "$RUNNER_TEMP/faderpunk"
+
+      - name: Build installable FPApp
+        run: |
+          make -C "$RUNNER_TEMP/app" -f "$GITHUB_WORKSPACE/Makefile" fpapps FADERPUNK_DIR="$RUNNER_TEMP/faderpunk"
+          find "$RUNNER_TEMP/app/build/fpapps" -maxdepth 1 -type f -name '*.fpapp' -print
+          test -n "$(find "$RUNNER_TEMP/app/build/fpapps" -maxdepth 1 -type f -name '*.fpapp' -print -quit)"
+
+      - name: Upload MATHS 2 package
+        uses: actions/upload-artifact@v4
+        with:
+          name: maths2-fpapp
+          path: ${{ runner.temp }}/app/build/fpapps/*.fpapp
+          if-no-files-found: error
+          retention-days: 7
