@@ -147,6 +147,7 @@ fn bipolar_output(level: f32, attenuverter: u16) -> u16 {
         .clamp(0.0, 4095.0) as u16
 }
 
+#[embassy_executor::task(pool_size = 16/CHANNELS)]
 pub async fn wrapper(
     app: App<CHANNELS>,
     exit_signal: &'static Signal<NoopRawMutex, bool>,
