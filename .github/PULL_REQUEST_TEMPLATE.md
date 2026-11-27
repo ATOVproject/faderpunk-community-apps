@@ -1,3 +1,6 @@
+<!-- Opening this PR says it is ready to merge. Still working on it? Open it as
+     a draft instead. See "Before you open a PR" in CONTRIBUTING.md. -->
+
 ## What kind of PR is this?
 
 <!-- Exactly one. Mixed PRs are rejected — see CONTRIBUTING.md. -->

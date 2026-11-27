@@ -237,6 +237,15 @@ not committed; reviewed source remains the source of truth.
 
 ## Before you open a PR
 
+**Opening a pull request says it is ready to merge:** everything below is done,
+and a maintainer may merge it as it stands.
+
+If it is still a work in progress, open it as a **draft** (*Create draft pull
+request*), or use *Convert to draft* on one that is already open. Drafts are
+welcome and run the same checks, but they aren't reviewed or merged; click
+*Ready for review* once the work is finished. A maintainer may convert a PR
+that turns out to be unfinished back to a draft.
+
 - `make fpapps` builds every app you touched.
 - You tested the change on hardware (or say in the PR that you couldn't).
 - The manual still matches what the app does — if the behaviour changed, say
