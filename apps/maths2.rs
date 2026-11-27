@@ -163,8 +163,7 @@ fn bipolar_output(level: f32, attenuverter: u16) -> u16 {
     let gain = centered as f32 / 2047.0;
     // The physical jack is configured for -5..+5 V. Full fader travel is
     // unity gain, so a full envelope reaches the hardware's +/-5 V limit.
-    (2048.0 + level.clamp(0.0, 1.0) * gain * 2047.0)
-        .round()
+    libm::roundf(2048.0 + level.clamp(0.0, 1.0) * gain * 2047.0)
         .clamp(0.0, 4095.0) as u16
 }
 
