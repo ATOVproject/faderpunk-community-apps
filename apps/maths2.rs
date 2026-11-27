@@ -253,8 +253,8 @@ pub async fn run(app: &App<CHANNELS>) {
             buttons.is_button_pressed(2),
             ch1_rise,
             ch1_fall,
-            sh[2],
-            sh[3],
+            if buttons.is_shift_pressed() { sh[2] } else { f[2] },
+            if buttons.is_shift_pressed() { sh[3] } else { f[2] },
         );
         step_generator(
             &mut ch2,
@@ -265,8 +265,8 @@ pub async fn run(app: &App<CHANNELS>) {
             buttons.is_button_pressed(6),
             ch2_rise,
             ch2_fall,
-            sh[6],
-            sh[7],
+            if buttons.is_shift_pressed() { sh[6] } else { f[6] },
+            if buttons.is_shift_pressed() { sh[7] } else { f[6] },
         );
 
         ch1_output.set_value(bipolar_output(ch1.level, f[3]));
