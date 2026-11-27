@@ -1,7 +1,7 @@
 use embassy_futures::select::select;
 use embassy_sync::{blocking_mutex::raw::NoopRawMutex, signal::Signal};
 use heapless::Vec;
-use libfp::{AppIcon, Brightness, Color, Config, Curve, Range, Value, APP_MAX_PARAMS};
+use libfp::{latch::LatchLayer, AppIcon, Brightness, Color, Config, Curve, Range, Value, APP_MAX_PARAMS};
 
 use crate::app::{App, AppParams, Led};
 
@@ -45,6 +45,7 @@ struct Generator {
     previous_gate: bool,
     previous_trigger_button: bool,
     previous_cycle_button: bool,
+    previous_reset_button: bool,
     eor_flash_ms: u16,
     eoc_flash_ms: u16,
 }
@@ -59,6 +60,7 @@ impl Generator {
             previous_gate: false,
             previous_trigger_button: false,
             previous_cycle_button: false,
+            previous_reset_button: false,
             eor_flash_ms: 0,
             eoc_flash_ms: 0,
         }
@@ -92,10 +94,12 @@ fn response_curve(progress: f32, response: u16) -> f32 {
     }
 }
 
-fn cv_time_scale(cv: u16) -> f32 {
-    // 5 V is nominal; the CV input sweeps the segment time from 0.25x to 1.75x.
-    let normalized = cv.min(4095) as f32 / 4095.0;
-    0.25 + normalized * 1.5
+fn cv_time_scale(cv: u16, amount: u16) -> f32 {
+    // Zero SHIFT amount ignores the CV input (1x). Full amount gives the
+    // original 0.25x..1.75x modulation range around the nominal 1x time.
+    let input = cv.min(4095) as f32 / 4095.0;
+    let depth = amount.min(4095) as f32 / 4095.0;
+    1.0 + ((input - 0.5) * 1.5 * depth)
 }
 
 fn step_generator(
@@ -103,9 +107,12 @@ fn step_generator(
     gate: u16,
     trigger_button: bool,
     cycle_button: bool,
+    hold_button: bool,
+    reset_button: bool,
     rise_ms: f32,
     fall_ms: f32,
-    response: u16,
+    rise_response: u16,
+    fall_response: u16,
 ) {
     let gate_high = gate >= 410; // approximately 1 V on a 0-10 V input
     if gate_high && !generator.previous_gate {
@@ -120,9 +127,18 @@ fn step_generator(
     generator.previous_gate = gate_high;
     generator.previous_trigger_button = trigger_button;
     generator.previous_cycle_button = cycle_button;
+    let reset_edge = reset_button && !generator.previous_reset_button;
+    generator.previous_reset_button = reset_button;
+
+    if reset_edge {
+        generator.phase = Phase::Idle;
+        generator.level = 0.0;
+        generator.segment_progress = 0.0;
+    }
 
     generator.eor_flash_ms = generator.eor_flash_ms.saturating_sub(1);
     generator.eoc_flash_ms = generator.eoc_flash_ms.saturating_sub(1);
+    if hold_button { return; }
     match generator.phase {
         Phase::Idle => {
             if generator.cycle {
@@ -132,7 +148,7 @@ fn step_generator(
         Phase::Rise => {
             generator.segment_progress =
                 (generator.segment_progress + 1.0 / rise_ms.max(1.0)).clamp(0.0, 1.0);
-            generator.level = response_curve(generator.segment_progress, response);
+            generator.level = response_curve(generator.segment_progress, rise_response);
             if generator.segment_progress >= 1.0 {
                 generator.level = 1.0;
                 generator.segment_progress = 0.0;
@@ -143,7 +159,7 @@ fn step_generator(
         Phase::Fall => {
             generator.segment_progress =
                 (generator.segment_progress + 1.0 / fall_ms.max(1.0)).clamp(0.0, 1.0);
-            generator.level = 1.0 - response_curve(generator.segment_progress, response);
+            generator.level = 1.0 - response_curve(generator.segment_progress, fall_response);
             if generator.segment_progress >= 1.0 {
                 generator.level = 0.0;
                 generator.segment_progress = 0.0;
@@ -191,17 +207,40 @@ pub async fn run(app: &App<CHANNELS>) {
     let mut ch1 = Generator::new();
     let mut ch2 = Generator::new();
 
+    // Separate stored values for the normal and SHIFT fader layers. The latch
+    // prevents a physical fader from jumping a parameter when layers change.
+    let mut latches = core::array::from_fn::<_, CHANNELS, _>(|n| app.make_latch(faders.get_value_at(n)));
+    let mut main_values = faders.get_all_values();
+    let mut shift_values = [4095, 4095, 2048, 2048, 4095, 4095, 2048, 2048];
+
     leds.set(3, Led::Button, Color::Cyan, Brightness::Mid);
     leds.set(7, Led::Button, Color::Pink, Brightness::Mid);
 
     loop {
         app.delay_millis(1).await;
 
-        let f = faders.get_all_values();
-        let ch1_rise = fader_time_ms(f[0]) * cv_time_scale(ch1_rise_cv.get_value());
-        let ch1_fall = fader_time_ms(f[1]) * cv_time_scale(ch1_fall_cv.get_value());
-        let ch2_rise = fader_time_ms(f[4]) * cv_time_scale(ch2_rise_cv.get_value());
-        let ch2_fall = fader_time_ms(f[5]) * cv_time_scale(ch2_fall_cv.get_value());
+        let physical = faders.get_all_values();
+        let layer = LatchLayer::from(buttons.is_shift_pressed());
+        for chan in 0..CHANNELS {
+            let target = match layer {
+                LatchLayer::Main => main_values[chan],
+                LatchLayer::Alt => shift_values[chan],
+                LatchLayer::Third => continue,
+            };
+            if let Some(value) = latches[chan].update(physical[chan], layer, target) {
+                match layer {
+                    LatchLayer::Main => main_values[chan] = value,
+                    LatchLayer::Alt => shift_values[chan] = value,
+                    LatchLayer::Third => {},
+                }
+            }
+        }
+        let f = main_values;
+        let sh = shift_values;
+        let ch1_rise = fader_time_ms(f[0]) * cv_time_scale(ch1_rise_cv.get_value(), sh[0]);
+        let ch1_fall = fader_time_ms(f[1]) * cv_time_scale(ch1_fall_cv.get_value(), sh[1]);
+        let ch2_rise = fader_time_ms(f[4]) * cv_time_scale(ch2_rise_cv.get_value(), sh[4]);
+        let ch2_fall = fader_time_ms(f[5]) * cv_time_scale(ch2_fall_cv.get_value(), sh[5]);
 
         let ch1_cycle_before = ch1.cycle;
         let ch2_cycle_before = ch2.cycle;
@@ -210,18 +249,24 @@ pub async fn run(app: &App<CHANNELS>) {
             ch1_signal.get_value(),
             buttons.is_button_pressed(0),
             buttons.is_button_pressed(3),
+            buttons.is_button_pressed(1),
+            buttons.is_button_pressed(2),
             ch1_rise,
             ch1_fall,
-            f[2],
+            sh[2],
+            sh[3],
         );
         step_generator(
             &mut ch2,
             ch2_signal.get_value(),
             buttons.is_button_pressed(4),
             buttons.is_button_pressed(7),
+            buttons.is_button_pressed(5),
+            buttons.is_button_pressed(6),
             ch2_rise,
             ch2_fall,
-            f[6],
+            sh[6],
+            sh[7],
         );
 
         ch1_output.set_value(bipolar_output(ch1.level, f[3]));
