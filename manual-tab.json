@@ -1763,5 +1763,114 @@
       "Curve of each button (ADSR attack, decay, release; ASR)",
       "Muted outputs (ADSR, ASR)"
     ]
+  },
+  {
+    "appId": 200,
+    "title": "MATHS 2",
+    "description": "Two independent function generators with bipolar attenuverters",
+    "icon": "ad-env",
+    "color": "Cyan",
+    "category": "Modulation",
+    "text": "MATHS 2 provides two independent function generators, labelled MATHS CH 1 and MATHS CH 2. Each generator has its own Signal trigger input, Rise CV input, Fall CV input, Rise control, Fall control, Vari-Response control, Cycle toggle, and bipolar output attenuverter. The two generators run independently. The SCENE button and SCENE fader layer are not used by this version.\n\n#### Function generation\n- A rising edge at the Signal input (approximately 1 V) triggers the Rise stage.\n- Rise and Fall controls each set their stage time from approximately 2 ms to 10 s.\n- Rise CV and Fall CV inputs modulate their respective times. SHIFT + the corresponding Rise/Fall fader sets the CV amount; at zero amount the CV is ignored, and at full amount the modulation range is approximately 0.25× at 0 V to 1.75× at 10 V.\n- Normal Vari-Response morphs both Rise and Fall curves together from logarithmic through linear to exponential.\n- Hold SHIFT and move the corresponding curve fader to adjust Rise and Fall response independently.\n- The generator proceeds through Rise, then Fall, then Idle. With Cycle enabled, it repeats Rise and Fall continuously.\n\n#### Buttons\n- **Signal channel button** — manual trigger (CH 1 on channel 1; CH 2 on channel 5).\n- **Rise CV channel button** — Hold (CH 1 on channel 2; CH 2 on channel 6). Hold the button to pause the envelope at its current level; release to resume.\n- **Fall CV channel button** — Reset (CH 1 on channel 3; CH 2 on channel 7). Resets the envelope to zero; if Cycle is enabled, the cycle restarts from the beginning.\n- **Output channel button** — toggle Cycle on/off (CH 1 on channel 4; CH 2 on channel 8).\n\n#### Output attenuverter\n- The output fader is bipolar: centre = 0, upward = positive gain, downward = negative polarity.\n- The attenuverter scales the generated envelope before it reaches the physical output. At the centre the output is 0 V; at either end the output can reach +5 V or −5 V.\n- This is not an independent voltage source: the same output jack carries the attenuverted envelope.\n\n#### EOR / EOC indication\n- End of Rise (EOR) and End of Cycle (EOC) are indicated by brief flashes on the output channel's Top and Bottom LEDs respectively. They are not separate physical gate outputs in this eight-channel allocation.\n\n#### Channel allocation\n- Channels 1–4: MATHS CH 1 — Signal In, Rise CV In, Fall CV In, attenuverted Output.\n- Channels 5–8: MATHS CH 2 — Signal In, Rise CV In, Fall CV In, attenuverted Output.\n\n#### SHIFT fader layer\n- Fader 1 / 5: Rise CV amount for MATHS CH 1 / CH 2.\n- Fader 2 / 6: Fall CV amount for MATHS CH 1 / CH 2.\n- Fader 3 / 7: independent Rise curve for MATHS CH 1 / CH 2.\n- Fader 4 / 8: independent Fall curve for MATHS CH 1 / CH 2.\n- The fader latch prevents abrupt parameter jumps when switching between the normal and SHIFT layers.",
+    "channels": [
+      {
+        "jackTitle": "CH 1 Signal In",
+        "jackDescription": "0–10 V trigger input. A rising edge above approximately 1 V starts the Rise stage. The channel button also provides a manual trigger.",
+        "faderTitle": "CH 1 Rise",
+        "faderDescription": "Sets the Rise time from approximately 2 ms to 10 s.",
+        "ledTop": "Shows the Rise fader position.",
+        "ledBottom": "Not used on this channel.",
+        "fnTitle": "Manual trigger",
+        "fnDescription": "Tap to trigger this function generator.",
+        "faderPlusShiftTitle": "Rise CV amount",
+        "faderPlusShiftDescription": "Sets how strongly the Rise CV input affects Rise time; zero ignores the CV, full gives the full modulation range."
+      },
+      {
+        "jackTitle": "CH 1 Rise CV In",
+        "jackDescription": "0–10 V CV input scaling CH 1 Rise time. Approximately 5 V is nominal.",
+        "faderTitle": "CH 1 Fall",
+        "faderDescription": "Sets the Fall time from approximately 2 ms to 10 s.",
+        "ledTop": "Shows the Fall fader position.",
+        "ledBottom": "Not used on this channel.",
+        "fnTitle": "Hold",
+        "fnDescription": "Hold the button to pause the envelope at its current level; release to resume.",
+        "faderPlusShiftTitle": "Fall CV amount",
+        "faderPlusShiftDescription": "Sets how strongly the Fall CV input affects Fall time; zero ignores the CV, full gives the full modulation range."
+      },
+      {
+        "jackTitle": "CH 1 Fall CV In",
+        "jackDescription": "0–10 V CV input scaling CH 1 Fall time. Approximately 5 V is nominal.",
+        "faderTitle": "CH 1 Vari-Response",
+        "faderDescription": "Morphs the function response from logarithmic through linear to exponential.",
+        "ledTop": "Shows the Vari-Response fader position.",
+        "ledBottom": "Not used on this channel.",
+        "fnTitle": "Reset",
+        "fnDescription": "Resets the envelope to zero; if Cycle is enabled, the cycle restarts.",
+        "faderPlusShiftTitle": "Independent Rise curve",
+        "faderPlusShiftDescription": "Overrides the shared normal Vari-Response for Rise only, from logarithmic through linear to exponential."
+      },
+      {
+        "jackTitle": "CH 1 Output",
+        "jackDescription": "−5 V to +5 V output carrying the CH 1 envelope after its bipolar attenuverter. No separate unity output is available.",
+        "faderTitle": "CH 1 Attenuverter",
+        "faderDescription": "Bipolar output gain: centre = 0, up = positive, down = inverted polarity. Full travel reaches up to ±5 V.",
+        "fnTitle": "Cycle",
+        "fnDescription": "Tap to toggle continuous Rise/Fall cycling.",
+        "ledTop": "Brief flash at End of Rise (EOR).",
+        "ledBottom": "Brief flash at End of Cycle (EOC).",
+        "faderPlusShiftTitle": "Independent Fall curve",
+        "faderPlusShiftDescription": "Overrides the shared normal Vari-Response for Fall only, from logarithmic through linear to exponential."
+      },
+      {
+        "jackTitle": "CH 2 Signal In",
+        "jackDescription": "0–10 V trigger input. A rising edge above approximately 1 V starts the Rise stage. The channel button also provides a manual trigger.",
+        "faderTitle": "CH 2 Rise",
+        "faderDescription": "Sets the Rise time from approximately 2 ms to 10 s.",
+        "ledTop": "Shows the Rise fader position.",
+        "ledBottom": "Not used on this channel.",
+        "fnTitle": "Manual trigger",
+        "fnDescription": "Tap to trigger this function generator.",
+        "faderPlusShiftTitle": "Rise CV amount",
+        "faderPlusShiftDescription": "Sets how strongly the Rise CV input affects Rise time; zero ignores the CV, full gives the full modulation range."
+      },
+      {
+        "jackTitle": "CH 2 Rise CV In",
+        "jackDescription": "0–10 V CV input scaling CH 2 Rise time. Approximately 5 V is nominal.",
+        "faderTitle": "CH 2 Fall",
+        "faderDescription": "Sets the Fall time from approximately 2 ms to 10 s.",
+        "ledTop": "Shows the Fall fader position.",
+        "ledBottom": "Not used on this channel.",
+        "fnTitle": "Hold",
+        "fnDescription": "Hold the button to pause the envelope at its current level; release to resume.",
+        "faderPlusShiftTitle": "Fall CV amount",
+        "faderPlusShiftDescription": "Sets how strongly the Fall CV input affects Fall time; zero ignores the CV, full gives the full modulation range."
+      },
+      {
+        "jackTitle": "CH 2 Fall CV In",
+        "jackDescription": "0–10 V CV input scaling CH 2 Fall time. Approximately 5 V is nominal.",
+        "faderTitle": "CH 2 Vari-Response",
+        "faderDescription": "Morphs the function response from logarithmic through linear to exponential.",
+        "ledTop": "Shows the Vari-Response fader position.",
+        "ledBottom": "Not used on this channel.",
+        "fnTitle": "Reset",
+        "fnDescription": "Resets the envelope to zero; if Cycle is enabled, the cycle restarts.",
+        "faderPlusShiftTitle": "Independent Rise curve",
+        "faderPlusShiftDescription": "Overrides the shared normal Vari-Response for Rise only, from logarithmic through linear to exponential."
+      },
+      {
+        "jackTitle": "CH 2 Output",
+        "jackDescription": "−5 V to +5 V output carrying the CH 2 envelope after its bipolar attenuverter. No separate unity output is available.",
+        "faderTitle": "CH 2 Attenuverter",
+        "faderDescription": "Bipolar output gain: centre = 0, up = positive, down = inverted polarity. Full travel reaches up to ±5 V.",
+        "fnTitle": "Cycle",
+        "fnDescription": "Tap to toggle continuous Rise/Fall cycling.",
+        "ledTop": "Brief flash at End of Rise (EOR).",
+        "ledBottom": "Brief flash at End of Cycle (EOC).",
+        "faderPlusShiftTitle": "Independent Fall curve",
+        "faderPlusShiftDescription": "Overrides the shared normal Vari-Response for Fall only, from logarithmic through linear to exponential."
+      }
+    ],
+    "params": [],
+    "storage": []
   }
 ]
